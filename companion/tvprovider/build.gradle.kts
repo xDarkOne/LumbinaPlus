@@ -11,7 +11,7 @@ android {
     namespace = "dev.lumbina.tv.tvprovider"
 
     defaultConfig {
-        applicationId = "dev.lumbina.tv.tvprovider"
+        applicationId = "dev.xdark.lumbinaplus.tvprovider"
         versionCode = 2
         versionName = "0.2.0"
     }

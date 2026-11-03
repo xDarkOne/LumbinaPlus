@@ -8,6 +8,11 @@ even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
 
 The name "Lumbina" and its icons are not covered by that license: see TRADEMARKS.md.
 
+The VIDAA screen translator and dictionaries are adapted from VoiceKey by xDarkOne
+(https://github.com/xDarkOne/voicekey), licensed under GPL-3.0. The dictionaries are based on
+the Russian firmware translation from VIDDA Nova, used with its author's permission as
+recorded in VoiceKey's NOTICE.md.
+
 Third-party components:
 
 - AndroidX, Jetpack Compose, Compose for TV, Room, DataStore, Navigation, Media3

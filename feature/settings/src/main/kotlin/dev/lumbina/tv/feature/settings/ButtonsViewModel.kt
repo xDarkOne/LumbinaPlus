@@ -132,6 +132,10 @@ class ButtonsViewModel @Inject constructor(
         }
     }
 
+    fun toggleTranslator() {
+        viewModelScope.launch { settings.update { it.copy(translateSystemScreens = !it.translateSystemScreens) } }
+    }
+
     fun toggleVolumeHold() {
         viewModelScope.launch { settings.update { it.copy(volumeHold = !it.volumeHold) } }
     }

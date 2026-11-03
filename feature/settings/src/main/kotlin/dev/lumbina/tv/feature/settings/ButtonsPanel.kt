@@ -127,7 +127,7 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
     var resets by remember { mutableIntStateOf(0) }
     when (val at = stack.last()) {
         ButtonsScreen.Keys -> key(resets) {
-            KeysPage(current, way, viewModel::toggleVolumeHold, viewModel::toggleRemote) {
+            KeysPage(current, way, viewModel::toggleVolumeHold, viewModel::toggleRemote, viewModel::toggleTranslator) {
                 hold()
                 viewModel.free()
                 resets++
@@ -164,6 +164,7 @@ private fun KeysPage(
     way: ButtonsWay,
     onVolumeHold: () -> Unit,
     onToggleRemote: () -> Unit,
+    onToggleTranslator: () -> Unit,
     onReset: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -179,6 +180,15 @@ private fun KeysPage(
                     hint = stringResource(R.string.buttons_interception_hint),
                     checked = state.settings.interceptRemote,
                     onClick = onToggleRemote,
+                )
+            }
+            item(key = "system-translation") {
+                SwitchRow(
+                    title = stringResource(R.string.buttons_translator),
+                    hint = stringResource(R.string.buttons_translator_hint),
+                    checked = state.settings.translateSystemScreens,
+                    enabled = state.settings.interceptRemote,
+                    onClick = onToggleTranslator,
                 )
             }
             if (voiceKey != null) item(key = "voicekey") {

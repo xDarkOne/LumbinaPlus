@@ -29,6 +29,8 @@ data class RemoteSettings(
      */
     val volumeHold: Boolean = false,
     val interceptRemote: Boolean = true,
+    /** Translate supported VIDAA system screens while the accessibility service is running. */
+    val translateSystemScreens: Boolean = false,
 ) {
     /**
      * A double press on Home shows the recent apps. Off, Home answers at once (it need not wait

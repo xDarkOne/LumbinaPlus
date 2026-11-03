@@ -23,6 +23,7 @@ internal data class StoredRemoteSettings(
     val everywhere: List<String> = emptyList(),
     val volumeHold: Boolean = false,
     val interceptRemote: Boolean = true,
+    val translateSystemScreens: Boolean = false,
 )
 
 /** [action]: an action's name, "app:" and an app's id, or null for "as on the device". */
@@ -51,6 +52,7 @@ internal fun StoredRemoteSettings.toDomain(): RemoteSettings {
         otherHome = otherHome?.let(::decode),
         volumeHold = volumeHold,
         interceptRemote = interceptRemote,
+        translateSystemScreens = translateSystemScreens,
     )
 }
 
@@ -68,6 +70,7 @@ internal fun RemoteSettings.toStored() = StoredRemoteSettings(
     everywhere = everywhere.map { it.id },
     volumeHold = volumeHold,
     interceptRemote = interceptRemote,
+    translateSystemScreens = translateSystemScreens,
 )
 
 private const val APP = "app:"

@@ -202,7 +202,7 @@
     <string name="channels_access_allow">Allow access to channels</string>
     <string name="channels_none">No channels yet.</string>
     <string name="channels_publish_hint">Channels appear once an app adds them, usually after it is opened once.</string>
-    <string name="channels_no_provider">To get channels and “Continue watching”, install the Lumbina TV Provider add-on.</string>
+    <string name="channels_no_provider">To get channels and “Continue watching”, install the LumbinaPlus TV Provider add-on.</string>
     <plurals name="channels_programs">
         <item quantity="one">%d program</item>
         <item quantity="other">%d programs</item>
@@ -511,4 +511,6 @@
     <string name="buttons_interception">Intercept remote buttons</string>
     <string name="buttons_interception_hint">Turn off when VoiceKey handles the remote. Lumbina remote shortcuts will be unavailable.</string>
     <string name="buttons_voicekey_settings">VoiceKey settings</string>
+    <string name="buttons_translator">Translate system screens</string>
+    <string name="buttons_translator_hint">Translate supported VIDAA menus into Russian. Requires remote button interception.</string>
 </resources>

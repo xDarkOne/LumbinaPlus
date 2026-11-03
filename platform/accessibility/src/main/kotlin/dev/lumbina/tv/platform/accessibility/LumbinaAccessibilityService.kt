@@ -33,13 +33,25 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private val scope = MainScope()
     private var remoteSettingsJob: Job? = null
     private var features: RemoteFeatures? = null
+    private var translator: Translator? = null
+    private var translatorExtraEvents = 0
+    private var translatorEventsEnabled = false
 
     override fun onServiceConnected() {
         remoteSettingsJob?.cancel()
         remoteSettingsJob = scope.launch {
-            remote.settings.map { it.interceptRemote }.distinctUntilChanged().collect { enabled ->
-                if (enabled) startRemote() else disableSelf()
-            }
+            remote.settings
+                .map { it.interceptRemote to it.translateSystemScreens }
+                .distinctUntilChanged()
+                .collect { (interceptRemote, translateSystemScreens) ->
+                    if (interceptRemote) {
+                        startRemote()
+                        configureTranslator(translateSystemScreens)
+                    } else {
+                        translator?.stop()
+                        disableSelf()
+                    }
+                }
         }
     }
 
@@ -49,16 +61,35 @@ class LumbinaAccessibilityService : AccessibilityService() {
         (features ?: featuresFactory.create(this, scope).also { features = it }).start()
     }
 
+    private fun configureTranslator(enabled: Boolean) {
+        val info = serviceInfo
+        if (info != null && enabled != translatorEventsEnabled) {
+            if (enabled) {
+                translatorExtraEvents = TRANSLATOR_EVENTS and info.eventTypes.inv()
+                info.eventTypes = info.eventTypes or TRANSLATOR_EVENTS
+            } else {
+                info.eventTypes = info.eventTypes and translatorExtraEvents.inv()
+                translatorExtraEvents = 0
+            }
+            serviceInfo = info
+            translatorEventsEnabled = enabled
+        }
+        if (enabled && translator == null) translator = Translator(this, log)
+        translator?.setEnabled(enabled)
+    }
+
     override fun onKeyEvent(event: KeyEvent): Boolean = features?.onKey(event) ?: false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         features?.onAccessibilityEvent(event)
+        translator?.onEvent(event)
     }
 
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
         log.log(TAG, "destroyed")
+        translator?.stop()
         features?.stop()
         scope.cancel()
         super.onDestroy()
@@ -66,5 +97,8 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     private companion object {
         const val TAG = "a11y"
+        const val TRANSLATOR_EVENTS = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_VIEW_SCROLLED or
+            AccessibilityEvent.TYPE_VIEW_FOCUSED or AccessibilityEvent.TYPE_VIEW_SELECTED
     }
 }

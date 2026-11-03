@@ -87,6 +87,7 @@ class HandleUtterance(
     private val now: () -> Long,
     private val commandsEnabled: suspend () -> Boolean = { true },
     private val matcher: AppMatcher = AppMatcher(),
+    private val searchInApp: suspend (VideoSearchTarget, String) -> Boolean = { _, _ -> false },
 ) {
     suspend operator fun invoke(text: String): UtteranceOutcome {
         val command = if (commandsEnabled()) VoiceCommandParser.parse(text) else null
@@ -94,7 +95,7 @@ class HandleUtterance(
             null -> type(text)
             is VoiceCommand.OpenApp -> withApp(command.query, ::open)
             is VoiceCommand.Close -> close(command)
-            is VoiceCommand.Search -> find(command.query)
+            is VoiceCommand.Search -> find(command)
             is VoiceCommand.Sleep -> sleepIn(command.minutes)
             is VoiceCommand.Volume -> done(command, device.volume(command.change))
             is VoiceCommand.Media -> done(command, device.media(command.action))
@@ -145,7 +146,11 @@ class HandleUtterance(
         return device.forceStop(packageName) || inFront
     }
 
-    private suspend fun find(query: String): UtteranceOutcome {
+    private suspend fun find(command: VoiceCommand.Search): UtteranceOutcome {
+        val (query, target) = command
+        if (target != null) {
+            return if (searchInApp(target, query)) UtteranceOutcome.Searched(query) else UtteranceOutcome.SearchFailed
+        }
         deliver(query)?.let { return UtteranceOutcome.Typed(it) }
         return if (search.search(query)) UtteranceOutcome.Searched(query) else UtteranceOutcome.NotDelivered(query)
     }

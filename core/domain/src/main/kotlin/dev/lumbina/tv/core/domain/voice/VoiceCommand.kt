@@ -7,7 +7,7 @@ sealed interface VoiceCommand {
     /** Stops [query]'s app, or the one in front when null. */
     data class Close(val query: String?) : VoiceCommand
 
-    data class Search(val query: String) : VoiceCommand
+    data class Search(val query: String, val target: VideoSearchTarget? = null) : VoiceCommand
 
     data class Volume(val change: VolumeChange) : VoiceCommand
 
@@ -20,6 +20,8 @@ sealed interface VoiceCommand {
     /** Standby in [minutes] (0: now); null cancels a running sleep timer. */
     data class Sleep(val minutes: Int?) : VoiceCommand
 }
+
+enum class VideoSearchTarget { YouTube, VkVideo, Lampa }
 
 enum class VolumeChange { Up, Down, Mute, Unmute, ToggleMute }
 
@@ -55,7 +57,12 @@ object VoiceCommandParser {
     }
 
     private fun withArgument(phrase: String): VoiceCommand? {
-        SEARCH.matchEntire(phrase)?.let { return VoiceCommand.Search(it.groupValues.last().trim()) }
+        SEARCH.matchEntire(phrase)?.let {
+            val query = it.groupValues.last().trim()
+            return TARGETED_SEARCH.firstNotNullOfOrNull { (pattern, target) ->
+                pattern.matchEntire(query)?.let { match -> VoiceCommand.Search(match.groupValues[1], target) }
+            } ?: VoiceCommand.Search(query)
+        }
         OPEN.matchEntire(phrase)?.let { return VoiceCommand.OpenApp(it.groupValues.last().trim()) }
         return null
     }
@@ -117,6 +124,12 @@ object VoiceCommandParser {
     private val CLOSE = r("(закрой|закрыть|выйди из|close|quit|exit)( (.+))?")
     private val THIS_APP = setOf("приложение", "это", "это приложение", "app", "the app", "this", "this app", "it")
 
+    private val TARGETED_SEARCH = listOf(
+        r("(?:на|в|on|in) (?:ютуб(?:е)?|ютьюб(?:е)?|ю туб(?:е)?|youtube|you tube|tizentube) (.+)") to
+            VideoSearchTarget.YouTube,
+        r("(?:на|в|on|in) (?:вк видео|вк|vk video|vk) (.+)") to VideoSearchTarget.VkVideo,
+        r("(?:на|в|on|in) (?:лампе|лампочке|lampa) (.+)") to VideoSearchTarget.Lampa,
+    )
     private val SEARCH = r("(найди|найти|поищи|ищи|поиск|search for|search|find|look for) (.+)")
     private val OPEN = r(
         "(открой|открыть|запусти|запустить|включи|включить|зайди в|перейди в|покажи|" +

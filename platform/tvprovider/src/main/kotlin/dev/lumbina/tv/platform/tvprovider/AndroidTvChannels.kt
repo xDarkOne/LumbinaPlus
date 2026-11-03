@@ -18,13 +18,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.common.TizenTubeWatchNext as LocalCard
 import dev.lumbina.tv.core.domain.access.CompanionApp
+import dev.lumbina.tv.core.domain.channels.ArtShape
 import dev.lumbina.tv.core.domain.channels.ChannelCensus
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.ProgramLauncher
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
+import java.io.File
 import java.net.URISyntaxException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -36,6 +39,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -96,7 +100,8 @@ internal class AndroidTvChannels @Inject constructor(
      * it only Lumbina's own rows. Lumbina's companion provider needs nothing.
      */
     override fun missing(): String? {
-        if ((provider() ?: return null) == COMPANION) return null
+        val provider = provider() ?: return null
+        if (provider == COMPANION || provider == UPSTREAM_COMPANION) return null
         // Only where the user can grant it: a firmware may declare it signature-only.
         val askable = try {
             val info = context.packageManager.getPermissionInfo(READ_TV_LISTINGS, 0)
@@ -113,12 +118,48 @@ internal class AndroidTvChannels @Inject constructor(
         refreshes.tryEmit(Unit)
     }
 
-    override fun watchNext(): Flow<List<ProgramCard>> = observe {
-        query(WATCH_NEXT, Columns.WATCH_NEXT) { row -> programOf(row)?.let { it to row.long(Columns.ENGAGED_AT) } }
-            .sortedByDescending { it.second ?: 0L }
-            .map { it.first }
-            .also { note("next", "${provider()}: ${it.size} to continue watching") }
-    }
+    override fun watchNext(): Flow<List<ProgramCard>> = combine(
+        observe {
+            query(WATCH_NEXT, Columns.WATCH_NEXT) { row ->
+                programOf(row)?.let { it to row.long(Columns.ENGAGED_AT) }
+            }.also { note("next", "${provider()}: ${it.size} to continue watching") }
+        },
+        localTizenTubeCard(),
+    ) { providerCards, local -> mergeTizenTubeCard(providerCards, local) }
+
+    private fun localTizenTubeCard(): Flow<Pair<ProgramCard, Long>?> = callbackFlow {
+        val prefs = context.getSharedPreferences(LocalCard.PREFERENCES, Context.MODE_PRIVATE)
+        fun readCard(): Pair<ProgramCard, Long>? {
+            val title = prefs.getString(LocalCard.TITLE, null)?.takeIf { it.isNotBlank() } ?: return null
+            val id = prefs.getString(LocalCard.MEDIA_ID, null)
+            val position = prefs.getLong(LocalCard.POSITION, 0)
+            val duration = prefs.getLong(LocalCard.DURATION, 0)
+            val url = if (id != null && id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
+                Uri.parse("https://www.youtube.com/watch").buildUpon()
+                    .appendQueryParameter("v", id).appendQueryParameter("t", "${position / 1000}s").build()
+            } else {
+                Uri.parse("https://www.youtube.com/tv").buildUpon()
+                    .appendQueryParameter("launch", "voice").appendQueryParameter("vs", "11")
+                    .appendQueryParameter("va", "search").appendQueryParameter("vaa", title).build()
+            }
+            val intent = Intent(Intent.ACTION_VIEW, url).toUri(Intent.URI_INTENT_SCHEME)
+            val artwork = prefs.getString(LocalCard.ARTWORK, null)?.let(::File)?.takeIf { it.isFile }
+            return ProgramCard(
+                id = LocalCard.CARD_ID,
+                packageName = LocalCard.PACKAGE,
+                title = title,
+                subtitle = prefs.getString(LocalCard.ARTIST, null),
+                artUri = artwork?.let { Uri.fromFile(it).toString() },
+                shape = ArtShape.Wide,
+                intentUri = intent,
+                progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
+            ) to prefs.getLong(LocalCard.UPDATED, 0)
+        }
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(readCard()) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(readCard())
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     /**
      * Empty while there is no provider; [refreshes] makes it look again, so the rows come when one
@@ -182,7 +223,8 @@ internal class AndroidTvChannels @Inject constructor(
         val PREVIEW_PROGRAMS: Uri = Uri.parse("content://$AUTHORITY/preview_program")
         private const val TAG = "channels"
         private const val READ_TV_LISTINGS = "android.permission.READ_TV_LISTINGS"
-        const val COMPANION = "dev.lumbina.tv.tvprovider"
+        const val COMPANION = "dev.xdark.lumbinaplus.tvprovider"
+        private const val UPSTREAM_COMPANION = "dev.lumbina.tv.tvprovider"
         private const val DEBOUNCE_MILLIS = 500L
         private val WATCH_NEXT: Uri = Uri.parse("content://$AUTHORITY/watch_next_program")
     }
@@ -251,4 +293,17 @@ internal interface TvProviderModule {
     fun companion(impl: TvProviderCompanion): CompanionApp
 
     @Binds fun launcher(impl: AndroidProgramLauncher): ProgramLauncher
+}
+
+/** Prefer an app-published card over the fallback for the same video. */
+internal fun mergeTizenTubeCard(
+    providerCards: List<Pair<ProgramCard, Long?>>,
+    local: Pair<ProgramCard, Long>?,
+): List<ProgramCard> {
+    val alreadyPublished = local != null && providerCards.any { (card) ->
+        card.packageName in setOf(LocalCard.PACKAGE, "dev.xdark.voicekey") &&
+            card.title.trim().equals(local.first.title.trim(), ignoreCase = true)
+    }
+    val cards = if (local != null && !alreadyPublished) providerCards + local else providerCards
+    return cards.sortedByDescending { it.second ?: 0L }.map { it.first }
 }

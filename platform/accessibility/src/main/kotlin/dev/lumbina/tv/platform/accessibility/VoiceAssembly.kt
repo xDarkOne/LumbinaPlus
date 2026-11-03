@@ -1,6 +1,11 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.app.SearchManager
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
@@ -27,6 +32,7 @@ import dev.lumbina.tv.core.domain.text.withYouTube
 import dev.lumbina.tv.core.domain.voice.AppMatcher
 import dev.lumbina.tv.core.domain.voice.DeviceControls
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
+import dev.lumbina.tv.core.domain.voice.VideoSearchTarget
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,7 +76,30 @@ internal class VoiceAssembly(
         now = System::currentTimeMillis,
         commandsEnabled = { voiceSettings.settings.first().commands },
         matcher = AppMatcher(VOICE_ALIASES),
+        searchInApp = ::searchInApp,
     )
+
+    private suspend fun searchInApp(target: VideoSearchTarget, query: String): Boolean = when (target) {
+        VideoSearchTarget.YouTube -> searches.youTube.search(query)
+        VideoSearchTarget.VkVideo -> startSearch(
+            Intent(Intent.ACTION_VIEW, Uri.parse("vkvideo://video/search?query=" + Uri.encode(query)))
+                .setPackage("com.vk.tv"),
+        )
+
+        VideoSearchTarget.Lampa -> startSearch(
+            Intent(Intent.ACTION_SEARCH)
+                .setComponent(ComponentName("top.rootu.lampa", "top.rootu.lampa.MainActivity"))
+                .putExtra(SearchManager.QUERY, query)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
+    }
+
+    private fun startSearch(intent: Intent): Boolean = try {
+        service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    }
 
     /** The apps under the names people may say; "YouTube" is the app in use for it ([withYouTube]). */
     private suspend fun spokenApps(): List<App> {

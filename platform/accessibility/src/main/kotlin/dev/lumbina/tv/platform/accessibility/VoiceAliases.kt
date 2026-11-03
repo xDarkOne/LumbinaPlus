@@ -5,6 +5,9 @@ package dev.lumbina.tv.platform.accessibility
  * user's to give: "Voice name" in the app's menu on the home screen.
  */
 internal val VOICE_ALIASES: Map<String, List<String>> = mapOf(
+    "лампу" to listOf("lampa"),
+    "лампочку" to listOf("lampa"),
+    "вконтакте" to listOf("вк видео", "vk video"),
     "настройки" to listOf("settings"),
     "браузер" to listOf("browser", "chrome"),
     "магазин" to listOf("store", "rustore", "aptoide", "play store"),

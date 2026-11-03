@@ -204,7 +204,7 @@
     <string name="channels_access_allow">Разрешить доступ к каналам</string>
     <string name="channels_none">Каналов пока нет.</string>
     <string name="channels_publish_hint">Каналы появляются, когда приложение их добавит, обычно после первого запуска.</string>
-    <string name="channels_no_provider">Чтобы появились каналы и «Продолжить просмотр», установите дополнение Lumbina TV Provider.</string>
+    <string name="channels_no_provider">Чтобы появились каналы и «Продолжить просмотр», установите дополнение LumbinaPlus TV Provider.</string>
     <plurals name="channels_programs">
         <item quantity="one">%d программа</item>
         <item quantity="few">%d программы</item>
@@ -529,4 +529,6 @@
     <string name="buttons_interception">Перехват кнопок пульта</string>
     <string name="buttons_interception_hint">Выключите, если пультом управляет VoiceKey. Сочетания кнопок Lumbina будут недоступны.</string>
     <string name="buttons_voicekey_settings">Настройки VoiceKey</string>
+    <string name="buttons_translator">Перевод системных экранов</string>
+    <string name="buttons_translator_hint">Переводит поддерживаемые меню VIDAA на русский. Нужен перехват кнопок пульта.</string>
 </resources>

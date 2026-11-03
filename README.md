@@ -2,6 +2,16 @@
 
 LumbinaPlus is a fork of [Lumbina by Kasavy](https://github.com/Kasavy/lumbina) focused on Hisense/Vidda projectors. It installs alongside Lumbina. For use with [VoiceKey](https://github.com/xDarkOne/voicekey), open the remote button settings and turn off remote button interception. The same page links to VoiceKey settings when VoiceKey is installed.
 
+## Vidda additions
+
+- “Continue watching” keeps the last partly watched TizenTube video on the device, using media
+  session metadata when notification access is enabled. A matching card published to the TV
+  provider takes priority.
+- Voice commands can target the configured YouTube app, VK Video or LAMPA. For example,
+  “найди на ютубе трейлер Дюны” and “найди в лампе Дюну”.
+- The remote settings include an optional Russian overlay for VIDAA system menus. It runs
+  in the launcher's accessibility service and is off by default.
+
 ## About the original launcher
 
 A launcher for Android TV. Works without Google services. Made and tested on Hisense VIDAA

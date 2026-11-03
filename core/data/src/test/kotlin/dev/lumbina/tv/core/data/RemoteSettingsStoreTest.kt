@@ -28,8 +28,14 @@ class RemoteSettingsStoreTest {
             everywhere = setOf(RemoteKey.Menu),
             otherHome = AppId("tv.launcher", "tv.launcher.Home"),
             volumeHold = true,
+            translateSystemScreens = true,
         )
         assertEquals(settings, settings.toStored().toDomain())
+    }
+
+    @Test
+    fun `old settings leave system translation disabled`() {
+        assertFalse(StoredRemoteSettings().toDomain().translateSystemScreens)
     }
 
     @Test

@@ -49,7 +49,10 @@ class HandleUtteranceTest {
     private var launches = true
     private var installed = listOf(kinopoisk)
 
-    private fun handler(commands: Boolean = true) = HandleUtterance(
+    private fun handler(
+        commands: Boolean = true,
+        searchInApp: suspend (VideoSearchTarget, String) -> Boolean = { _, _ -> false },
+    ) = HandleUtterance(
         apps = { installed },
         launcher = { launches && launched.add(it) },
         device = device,
@@ -58,7 +61,20 @@ class HandleUtteranceTest {
         sleep = sleep,
         now = { 1_000L },
         commandsEnabled = { commands },
+        searchInApp = searchInApp,
     )
+
+    @Test
+    fun `a named video search goes to the requested app even with a focused field`() = runTest {
+        fieldOnScreen = true
+        val routed = mutableListOf<Pair<VideoSearchTarget, String>>()
+        val handler = handler(searchInApp = { target, query -> routed.add(target to query) })
+
+        assertEquals(UtteranceOutcome.Searched("дюну"), handler("найди в лампе дюну"))
+        assertEquals(listOf(VideoSearchTarget.Lampa to "дюну"), routed)
+        assertEquals(emptyList<String>(), typed)
+        assertEquals(emptyList<String>(), searched)
+    }
 
     @Test
     fun `a phrase whose search did not open is told as such, not as having nowhere to go`() = runTest {

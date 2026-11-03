@@ -4,9 +4,11 @@ import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.status.Notice
 import dev.lumbina.tv.core.domain.status.NotificationFeed
@@ -23,13 +25,20 @@ import kotlinx.coroutines.flow.map
  */
 class LumbinaNotificationListener : NotificationListenerService() {
 
+    private var tizenTubeHistory: TizenTubeHistory? = null
+
     override fun onListenerConnected() {
         NotificationStore.connected(this)
+        tizenTubeHistory?.stop()
+        val log = LumbinaLog { tag, message -> Log.i(tag, message) }
+        tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         val all = runCatching { activeNotifications }.getOrNull().orEmpty().filter { isVisible(it) }
         NotificationStore.replace(all, packageName, packageManager::labelOf)
     }
 
     override fun onListenerDisconnected() {
+        tizenTubeHistory?.stop()
+        tizenTubeHistory = null
         NotificationStore.connected(null)
     }
 
