@@ -6,13 +6,13 @@ import android.view.accessibility.AccessibilityEvent
 import dagger.hilt.android.AndroidEntryPoint
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Lumbina's always-running part: takes over the remote's Home and mic buttons from the firmware

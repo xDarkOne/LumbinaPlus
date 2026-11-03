@@ -6,7 +6,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Until
 import java.util.Locale
 
-internal const val PACKAGE = "dev.lumbina.tv"
+internal const val PACKAGE = "dev.xdark.lumbinaplus"
 
 private const val GRID_STEPS = 6
 private const val ROW_STEPS = 6

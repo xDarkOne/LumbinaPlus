@@ -149,7 +149,7 @@ class CompanionTvProvider : ContentProvider() {
     private fun notifyChange(uri: Uri) = requireNotNull(context).contentResolver.notifyChange(uri, null)
 
     private companion object {
-        const val LUMBINA_PACKAGE = "dev.lumbina.tv"
+        const val LUMBINA_PACKAGE = "dev.xdark.lumbinaplus"
         val KINDS = setOf(CHANNEL, "program", "preview_program", "watch_next_program", "recorded_program")
         const val BROWSABLE = "browsable"
         const val TITLE = "title"

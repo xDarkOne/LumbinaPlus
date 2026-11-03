@@ -24,6 +24,8 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguages
 import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import dev.lumbina.tv.core.ui.serviceScope
+import javax.inject.Inject
+import javax.inject.Named
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +41,6 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import javax.inject.Named
 
 /** Models of the enabled languages, in order of preference, and what is left to download. */
 data class VoiceSetup(val models: Map<String, ModelState>, val missingBytes: Long) {

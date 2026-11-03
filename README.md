@@ -1,4 +1,8 @@
-# Lumbina
+# LumbinaPlus
+
+LumbinaPlus is a fork of [Lumbina by Kasavy](https://github.com/Kasavy/lumbina) focused on Hisense/Vidda projectors. It installs alongside Lumbina. For use with [VoiceKey](https://github.com/xDarkOne/voicekey), open the remote button settings and turn off remote button interception. The same page links to VoiceKey settings when VoiceKey is installed.
+
+## About the original launcher
 
 A launcher for Android TV. Works without Google services. Made and tested on Hisense VIDAA
 projectors with Chinese firmware.

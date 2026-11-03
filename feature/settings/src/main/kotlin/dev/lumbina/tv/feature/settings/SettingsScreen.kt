@@ -63,12 +63,12 @@ import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.SCRIM_ALPHA
 import dev.lumbina.tv.core.ui.SidePanelSurface
 import dev.lumbina.tv.core.ui.panelTopClearOf
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
 /** A page of settings: one row of the root, under its [title] and by its own [icon]. */
 enum class SettingsPage(val title: Int, val icon: Int) {

@@ -9,7 +9,7 @@ android {
     namespace = "dev.lumbina.tv"
 
     defaultConfig {
-        applicationId = "dev.lumbina.tv"
+        applicationId = "dev.xdark.lumbinaplus"
         versionCode = 7
         versionName = "0.0.7"
     }
@@ -21,11 +21,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            if (providers.gradleProperty("lumbina.compatTest").orNull == "true") {
-                applicationIdSuffix = ".compattest"
-            }
-        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

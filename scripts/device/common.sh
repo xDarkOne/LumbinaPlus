@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared settings for device scripts. Override with environment variables.
 set -euo pipefail
-PKG="${LUMBINA_PKG:-dev.lumbina.tv}"
+PKG="${LUMBINA_PKG:-dev.xdark.lumbinaplus}"
 A11Y_SERVICE="${LUMBINA_A11Y_SERVICE:-$PKG/dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # adb from PATH, else from the SDK in local.properties (sdk.dir=C\:/path, backslashes dropped).

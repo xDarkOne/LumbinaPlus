@@ -38,9 +38,9 @@ import dev.lumbina.tv.core.network.UrlConnectionGet
 import dev.lumbina.tv.feature.screensaver.LumbinaDream
 import dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService
 import dev.lumbina.tv.platform.accessibility.SpeechAppEngine
-import kotlinx.coroutines.flow.first
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 
 @Module
 @InstallIn(SingletonComponent::class)

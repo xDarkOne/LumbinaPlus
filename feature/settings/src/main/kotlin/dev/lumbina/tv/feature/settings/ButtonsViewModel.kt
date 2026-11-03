@@ -20,6 +20,7 @@ import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * What the buttons' pages show: the user's [settings], the [apps] a button can open, and what the
