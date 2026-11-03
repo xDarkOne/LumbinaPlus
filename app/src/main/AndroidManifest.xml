@@ -10,6 +10,10 @@
         android:required="false" />
 
     <!-- Process names come from the build: processNames in build-logic. -->
+    <queries>
+        <package android:name="dev.xdark.voicekey" />
+    </queries>
+
     <application
         android:name=".LumbinaApplication"
         android:process="${uiProcess}"

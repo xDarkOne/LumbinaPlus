@@ -5,9 +5,14 @@ import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import dagger.hilt.android.AndroidEntryPoint
 import dev.lumbina.tv.core.common.LumbinaLog
-import javax.inject.Inject
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Lumbina's always-running part: takes over the remote's Home and mic buttons from the firmware
@@ -23,10 +28,22 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     @Inject lateinit var log: LumbinaLog
 
+    @Inject lateinit var remote: RemoteSettingsRepository
+
     private val scope = MainScope()
+    private var remoteSettingsJob: Job? = null
     private var features: RemoteFeatures? = null
 
     override fun onServiceConnected() {
+        remoteSettingsJob?.cancel()
+        remoteSettingsJob = scope.launch {
+            remote.settings.map { it.interceptRemote }.distinctUntilChanged().collect { enabled ->
+                if (enabled) startRemote() else disableSelf()
+            }
+        }
+    }
+
+    private fun startRemote() {
         // Keys let go for a held volume button stay so after the process ends, unless taken back here.
         filterKeys(true)
         (features ?: featuresFactory.create(this, scope).also { features = it }).start()

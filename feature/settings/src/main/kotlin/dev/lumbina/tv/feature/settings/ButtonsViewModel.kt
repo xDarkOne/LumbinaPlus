@@ -7,6 +7,7 @@ import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.health.AccessibilityHealth
+import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.remote.HomeScreen
 import dev.lumbina.tv.core.domain.remote.KeyBindingPolicy
 import dev.lumbina.tv.core.domain.remote.KeyCapture
@@ -19,7 +20,6 @@ import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * What the buttons' pages show: the user's [settings], the [apps] a button can open, and what the
@@ -72,6 +73,7 @@ class ButtonsViewModel @Inject constructor(
     profile: DeviceProfile,
     service: AccessibilityHealth,
     private val capture: KeyCapture,
+    private val heal: HealAccessibilityService,
 ) : ViewModel() {
 
     /** Ticks each time the page is back on screen: the service may have been turned on or off meanwhile. */
@@ -120,6 +122,14 @@ class ButtonsViewModel @Inject constructor(
     /** A blank [name] gives the button back the name its code has. */
     fun rename(key: RemoteKey, name: String) {
         viewModelScope.launch { settings.update { it.withKeyName(key, name) } }
+    }
+
+    fun toggleRemote() {
+        viewModelScope.launch {
+            settings.update { it.copy(interceptRemote = !it.interceptRemote) }
+            heal()
+            recheck()
+        }
     }
 
     fun toggleVolumeHold() {

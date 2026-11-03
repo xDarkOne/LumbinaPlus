@@ -17,14 +17,13 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.locale.AppLanguage
 import dev.lumbina.tv.core.domain.phone.LocalAddress
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.speech.ModelState
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
 import dev.lumbina.tv.core.domain.speech.VoiceLanguages
 import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import dev.lumbina.tv.core.ui.serviceScope
-import javax.inject.Inject
-import javax.inject.Named
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +39,8 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Named
 
 /** Models of the enabled languages, in order of preference, and what is left to download. */
 data class VoiceSetup(val models: Map<String, ModelState>, val missingBytes: Long) {
@@ -143,6 +144,7 @@ class SetupViewModel @Inject constructor(
     private val listings: TvListingsPermission,
     private val notices: NotificationAccess,
     profile: DeviceProfile,
+    remote: RemoteSettingsRepository,
 ) : ViewModel() {
 
     /** With its own debugging Lumbina gives itself notification access as it connects: no step for the user. */
@@ -222,9 +224,14 @@ class SetupViewModel @Inject constructor(
     val pending: StateFlow<Boolean> =
         accessSettings.settings.map { !it.setupCardHidden }.stateIn(viewModelScope, WhileUiSubscribed, true)
 
+    // An intentionally disabled service is not a missing setup step.
+    private val serviceForSetup = combine(service, remote.settings) { polled, remote ->
+        if (remote.interceptRemote) polled else polled.copy(running = true)
+    }
+
     /** Null while loading and once the setup was finished or skipped. */
     val status: StateFlow<SetupStatus?> = combine(
-        service,
+        serviceForSetup,
         voice,
         connect,
         accessSettings.settings.map { it.setupCardHidden to it.setupReopened },
@@ -258,15 +265,16 @@ class SetupViewModel @Inject constructor(
 
     /** After the setup: the service is not running and Lumbina is not bringing it back, so home should say so. */
     val serviceOff: StateFlow<Boolean> = combine(
+        remote.settings,
         service,
         accessSettings.settings.map { it.setupCardHidden },
         justOpened,
-    ) { polled, dismissed, justOpened ->
-        dismissed && !polled.running && !(justOpened && secureSettings.canWrite)
+    ) { remote, polled, dismissed, justOpened ->
+        remote.interceptRemote && dismissed && !polled.running && !(justOpened && secureSettings.canWrite)
     }.stateIn(viewModelScope, WhileUiSubscribed, false)
 
     /** How many of the setup's steps are not done, whether or not the setup is on screen. */
-    val left: StateFlow<Int> = combine(service, voice, justOpened) { polled, voice, justOpened ->
+    val left: StateFlow<Int> = combine(serviceForSetup, voice, justOpened) { polled, voice, justOpened ->
         SetupStatus(
             serviceRunning = polled.running,
             voice = voice,

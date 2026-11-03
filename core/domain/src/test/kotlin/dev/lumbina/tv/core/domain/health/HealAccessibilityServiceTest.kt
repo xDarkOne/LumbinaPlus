@@ -27,6 +27,35 @@ class HealAccessibilityServiceTest {
     )
 
     @Test
+    fun `intentional opt out does not restore a missing service`() = runTest {
+        val settings = FakeSecureSettings(services = assistant)
+        val heal = HealAccessibilityService(settings, { false }, ours, FakeHealLock(), interceptRemote = { false })
+        assertEquals(HealResult.Disabled, heal())
+        assertTrue(settings.writes.isEmpty())
+    }
+
+    @Test
+    fun `opt out during a heal keeps our service off and preserves other services`() = runTest {
+        val settings = FakeSecureSettings(services = "$assistant:$ours")
+        var intercept = true
+        val heal = HealAccessibilityService(
+            settings,
+            { false },
+            ours,
+            FakeHealLock(),
+            toggleDelayMillis = 1_500,
+            settleMillis = 0,
+            interceptRemote = { intercept },
+        )
+        val result = async { heal() }
+        runCurrent()
+        assertEquals(listOf(assistant), settings.writes)
+        intercept = false
+        assertEquals(HealResult.Disabled, result.await())
+        assertEquals(listOf(assistant), settings.writes)
+    }
+
+    @Test
     fun `nothing is written while the service runs`() = runTest {
         val settings = FakeSecureSettings(services = "$assistant:$ours")
         assertEquals(HealResult.AlreadyRunning, heal(settings, bound = true)())

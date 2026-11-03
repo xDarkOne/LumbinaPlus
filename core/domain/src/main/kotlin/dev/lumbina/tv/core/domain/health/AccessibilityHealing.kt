@@ -47,6 +47,7 @@ interface HealLock {
 }
 
 sealed interface HealResult {
+    data object Disabled : HealResult
     data object AlreadyRunning : HealResult
     data object MissingPermission : HealResult
     data object Reenabled : HealResult
@@ -67,8 +68,10 @@ class HealAccessibilityService(
     private val lock: HealLock,
     private val toggleDelayMillis: Long = 1_500,
     private val settleMillis: Long = 8_000,
+    private val interceptRemote: suspend () -> Boolean = { true },
 ) {
     suspend operator fun invoke(): HealResult {
+        if (!interceptRemote()) return HealResult.Disabled
         if (health.isServiceBound()) return HealResult.AlreadyRunning
         if (!settings.canWrite) return HealResult.MissingPermission
         return lock.withLock { healUnbound() }
@@ -76,16 +79,19 @@ class HealAccessibilityService(
 
     private suspend fun healUnbound(): HealResult {
         delay(settleMillis)
+        if (!interceptRemote()) return HealResult.Disabled
         if (health.isServiceBound()) return HealResult.AlreadyRunning
 
         val others = AccessibilityServiceList.withoutOurs(settings.enabledAccessibilityServices(), ourService)
-        // Once our entry is off it must come back, even if whoever asked for the heal is gone by then.
-        withContext(NonCancellable) {
+        // Finish the toggle after cancellation unless the user turned interception off.
+        return withContext(NonCancellable) {
             settings.setEnabledAccessibilityServices(AccessibilityServiceList.join(others))
             delay(toggleDelayMillis)
-            settings.setEnabledAccessibilityServices(AccessibilityServiceList.join(others + ourService))
+            if (!interceptRemote()) return@withContext HealResult.Disabled
+            val current = AccessibilityServiceList.withoutOurs(settings.enabledAccessibilityServices(), ourService)
+            settings.setEnabledAccessibilityServices(AccessibilityServiceList.join(current + ourService))
             settings.setAccessibilityEnabled()
+            HealResult.Reenabled
         }
-        return HealResult.Reenabled
     }
 }

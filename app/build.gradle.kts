@@ -21,6 +21,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.gradleProperty("lumbina.compatTest").orNull == "true") {
+                applicationIdSuffix = ".compattest"
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

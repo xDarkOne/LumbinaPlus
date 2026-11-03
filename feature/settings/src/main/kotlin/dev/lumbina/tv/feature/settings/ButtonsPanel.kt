@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -126,14 +127,14 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
     var resets by remember { mutableIntStateOf(0) }
     when (val at = stack.last()) {
         ButtonsScreen.Keys -> key(resets) {
-            KeysPage(current, way, viewModel::toggleVolumeHold) {
+            KeysPage(current, way, viewModel::toggleVolumeHold, viewModel::toggleRemote) {
                 hold()
                 viewModel.free()
                 resets++
             }
         }
 
-        ButtonsScreen.Capture -> CapturePage(current.serviceOn, viewModel::pressed, way) { key ->
+        ButtonsScreen.Capture -> CapturePage(current.serviceOn || !current.settings.interceptRemote, viewModel::pressed, way) { key ->
             hold()
             stack = stack.dropLast(1) + ButtonsScreen.Key(key)
         }
@@ -158,13 +159,35 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
 
 /** Home, every button the user took, then "take a button" and "as it was", then held volume buttons. */
 @Composable
-private fun KeysPage(state: ButtonsState, way: ButtonsWay, onVolumeHold: () -> Unit, onReset: () -> Unit) {
+private fun KeysPage(
+    state: ButtonsState,
+    way: ButtonsWay,
+    onVolumeHold: () -> Unit,
+    onToggleRemote: () -> Unit,
+    onReset: () -> Unit,
+) {
+    val context = LocalContext.current
+    val voiceKey = remember(context) { context.packageManager.getLaunchIntentForPackage("dev.xdark.voicekey") }
     var asking by remember { mutableStateOf(false) }
     // The buttons every remote has: Home, and the mic where Lumbina hears it.
     val own = listOfNotNull(RemoteKey.Home, RemoteKey.Mic.takeIf { state.mic })
     InnerPage(stringResource(R.string.buttons_title), way.back) {
         SettingsList {
-            if (!state.serviceOn) item(key = "service") { ServiceOff() }
+            item(key = "remote-interception") {
+                SwitchRow(
+                    title = stringResource(R.string.buttons_interception),
+                    hint = stringResource(R.string.buttons_interception_hint),
+                    checked = state.settings.interceptRemote,
+                    onClick = onToggleRemote,
+                )
+            }
+            if (voiceKey != null) item(key = "voicekey") {
+                SettingRow(
+                    onClick = { context.startActivity(voiceKey) },
+                    headlineContent = { Text(stringResource(R.string.buttons_voicekey_settings)) },
+                )
+            }
+            if (state.settings.interceptRemote && !state.serviceOn) item(key = "service") { ServiceOff() }
             items(own.size, key = { own[it].id }) { index ->
                 SettingRow(
                     onClick = { way.go(ButtonsScreen.Key(own[index])) },
@@ -184,7 +207,7 @@ private fun KeysPage(state: ButtonsState, way: ButtonsWay, onVolumeHold: () -> U
                 )
             }
             item { GroupLine() }
-            item(key = "capture") {
+            if (state.settings.interceptRemote) item(key = "capture") {
                 SettingRow(
                     onClick = { way.go(ButtonsScreen.Capture) },
                     headlineContent = { Text(stringResource(R.string.buttons_take)) },

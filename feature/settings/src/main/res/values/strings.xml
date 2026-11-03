@@ -508,4 +508,7 @@
     <string name="media_delete_hint">From this device, for good</string>
     <string name="media_delete_banner_hint">The tiles go back to their own banner</string>
     <string name="media_delete_title">Delete from this device?</string>
+    <string name="buttons_interception">Intercept remote buttons</string>
+    <string name="buttons_interception_hint">Turn off when VoiceKey handles the remote. Lumbina remote shortcuts will be unavailable.</string>
+    <string name="buttons_voicekey_settings">VoiceKey settings</string>
 </resources>

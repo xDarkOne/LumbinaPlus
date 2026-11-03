@@ -28,6 +28,7 @@ data class RemoteSettings(
      * the user turns it on: what it costs is said by the switch.
      */
     val volumeHold: Boolean = false,
+    val interceptRemote: Boolean = true,
 ) {
     /**
      * A double press on Home shows the recent apps. Off, Home answers at once (it need not wait

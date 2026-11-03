@@ -27,6 +27,7 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.HealLock
 import dev.lumbina.tv.core.domain.health.SecureSettings
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.speech.CloudSpeechEngine
 import dev.lumbina.tv.core.domain.speech.DeviceSpeech
 import dev.lumbina.tv.core.domain.speech.SpeechEngine
@@ -37,6 +38,7 @@ import dev.lumbina.tv.core.network.UrlConnectionGet
 import dev.lumbina.tv.feature.screensaver.LumbinaDream
 import dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService
 import dev.lumbina.tv.platform.accessibility.SpeechAppEngine
+import kotlinx.coroutines.flow.first
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -109,5 +111,8 @@ object AppModule {
         health: AccessibilityHealth,
         @Named(OUR_ACCESSIBILITY_SERVICE) ourService: String,
         lock: HealLock,
-    ): HealAccessibilityService = HealAccessibilityService(settings, health, ourService, lock)
+        remote: RemoteSettingsRepository,
+    ): HealAccessibilityService = HealAccessibilityService(settings, health, ourService, lock) {
+        remote.settings.first().interceptRemote
+    }
 }

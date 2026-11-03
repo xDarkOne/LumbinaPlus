@@ -526,4 +526,7 @@
     <string name="media_delete_hint">С устройства, без возврата</string>
     <string name="media_delete_banner_hint">Плитки вернутся к своему баннеру</string>
     <string name="media_delete_title">Удалить с устройства?</string>
+    <string name="buttons_interception">Перехват кнопок пульта</string>
+    <string name="buttons_interception_hint">Выключите, если пультом управляет VoiceKey. Сочетания кнопок Lumbina будут недоступны.</string>
+    <string name="buttons_voicekey_settings">Настройки VoiceKey</string>
 </resources>

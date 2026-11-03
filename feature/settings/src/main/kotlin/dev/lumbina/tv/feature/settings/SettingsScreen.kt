@@ -55,6 +55,7 @@ import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.home.RowSpotlight
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.ui.FreshPressGuard
 import dev.lumbina.tv.core.ui.LocalPanelTop
@@ -62,11 +63,12 @@ import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.SCRIM_ALPHA
 import dev.lumbina.tv.core.ui.SidePanelSurface
 import dev.lumbina.tv.core.ui.panelTopClearOf
-import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
 
 /** A page of settings: one row of the root, under its [title] and by its own [icon]. */
 enum class SettingsPage(val title: Int, val icon: Int) {
@@ -107,6 +109,7 @@ class SettingsPagesViewModel @Inject constructor(
     private val listings: TvListingsPermission,
     private val service: AccessibilityHealth,
     spotlight: RowSpotlight,
+    private val remote: RemoteSettingsRepository,
 ) : ViewModel() {
     val hidden: Set<SettingsPage> = hiddenPages(localAdb = profile.localAdb, remoteMic = profile.hasRemoteMic)
 
@@ -124,7 +127,7 @@ class SettingsPagesViewModel @Inject constructor(
     suspend fun problems(): Map<SettingsPage, Int> = withContext(Dispatchers.IO) {
         buildMap {
             if (listings.missing() != null) put(SettingsPage.Channels, R.string.root_channels_access)
-            if (!service.isServiceBound()) put(SettingsPage.HomeKey, R.string.root_service_off)
+            if (remote.settings.first().interceptRemote && !service.isServiceBound()) put(SettingsPage.HomeKey, R.string.root_service_off)
         }
     }
 }
