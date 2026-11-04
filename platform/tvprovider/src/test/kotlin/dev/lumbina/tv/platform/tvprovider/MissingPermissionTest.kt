@@ -3,6 +3,8 @@ package dev.lumbina.tv.platform.tvprovider
 import android.app.Application
 import android.content.pm.PermissionInfo
 import android.content.pm.ProviderInfo
+import dev.lumbina.tv.core.domain.access.AdbState
+import dev.lumbina.tv.core.domain.access.LocalAdb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -16,7 +18,15 @@ import org.robolectric.Shadows.shadowOf
 class MissingPermissionTest {
 
     private val context: Application = RuntimeEnvironment.getApplication()
-    private val channels = AndroidTvChannels(context) { _, _ -> }
+    private val channels = AndroidTvChannels(
+        context,
+        { _, _ -> },
+        object : LocalAdb {
+            override suspend fun state() = AdbState.Off
+            override suspend fun connect() = AdbState.Off
+            override suspend fun shell(command: String): String? = null
+        },
+    )
 
     private fun provider(packageName: String) {
         val info = ProviderInfo().apply {

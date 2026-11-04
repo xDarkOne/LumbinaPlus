@@ -26,6 +26,7 @@ import dev.lumbina.tv.core.common.LumbinaComponents
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.common.TizenTubeWatchNext as LocalCard
 import dev.lumbina.tv.core.domain.access.CompanionApp
+import dev.lumbina.tv.core.domain.access.LocalAdb
 import dev.lumbina.tv.core.domain.channels.ArtShape
 import dev.lumbina.tv.core.domain.channels.ChannelCensus
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
@@ -67,6 +68,7 @@ import kotlinx.coroutines.launch
 internal class AndroidTvChannels @Inject constructor(
     @ApplicationContext private val context: Context,
     private val log: LumbinaLog,
+    private val adb: LocalAdb,
 ) : TvChannels,
     TvListingsPermission {
 
@@ -82,6 +84,16 @@ internal class AndroidTvChannels @Inject constructor(
      */
     private val note = { what: String, found: String ->
         if (noted.put(what, found) != found) log.log(TAG, found)
+    }
+
+    private val upstream = ShellTvSnapshot {
+        val apk = context.packageCodePath.replace("'", "'\\''")
+        val args = listOf(
+            CHANNELS to Columns.CHANNEL,
+            PREVIEW_PROGRAMS to Columns.PREVIEW_PROGRAM,
+            WATCH_NEXT to Columns.WATCH_NEXT,
+        ).joinToString(" ") { (uri, columns) -> "${uri.lastPathSegment} ${columns.joinToString(",")}" }
+        adb.shell("CLASSPATH='$apk' app_process /system/bin ${TvProviderShell::class.java.name} $args")
     }
 
     override fun provider(): String? = context.packageManager.resolveContentProvider(AUTHORITY, 0)?.packageName
@@ -201,14 +213,14 @@ internal class AndroidTvChannels @Inject constructor(
      * is installed (Lumbina's companion, see [TvProviderCompanion]).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun <T> observe(read: () -> List<T>): Flow<List<T>> = refreshes
+    private fun <T> observe(read: suspend () -> List<T>): Flow<List<T>> = refreshes
         .onStart { emit(Unit) }
         .map { isAvailable() }
         .distinctUntilChanged()
         .onEach { available -> if (!available) note("provider", "no TV provider on this device") }
         .flatMapLatest { available -> if (available) observeProvider(read) else flowOf(emptyList()) }
 
-    private fun <T> observeProvider(read: () -> List<T>): Flow<List<T>> = callbackFlow {
+    private fun <T> observeProvider(read: suspend () -> List<T>): Flow<List<T>> = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 trySend(Unit)
@@ -234,18 +246,24 @@ internal class AndroidTvChannels @Inject constructor(
         emitAll(debounce { if (first) 0L else DEBOUNCE_MILLIS }.onEach { first = false })
     }
 
-    private fun <T> query(uri: Uri, projection: Array<String>, parse: (TvRow) -> T?): List<T> = try {
-        resolver.query(uri, projection, null, null, null)?.use { cursor ->
-            val row = CursorRow(cursor)
-            buildList { while (cursor.moveToNext()) parse(row)?.let(::add) }
-        }.orEmpty()
-    } catch (e: SecurityException) {
-        log.log(TAG, "no access to $uri: $e")
-        emptyList()
-    } catch (e: IllegalArgumentException) {
-        // A system provider rejects columns it does not have (older Android versions).
-        log.log(TAG, "query $uri failed: $e")
-        emptyList()
+    private suspend fun <T> query(uri: Uri, projection: Array<String>, parse: (TvRow) -> T?): List<T> {
+        if (provider() == UPSTREAM_COMPANION) {
+            upstream.rows(requireNotNull(uri.lastPathSegment))?.let { return it.mapNotNull(parse) }
+            note("bridge", "upstream provider shell read unavailable; trying normal access")
+        }
+        return try {
+            resolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val row = CursorRow(cursor)
+                buildList { while (cursor.moveToNext()) parse(row)?.let(::add) }
+            }.orEmpty()
+        } catch (e: SecurityException) {
+            log.log(TAG, "no access to $uri: $e")
+            emptyList()
+        } catch (e: IllegalArgumentException) {
+            // A system provider rejects columns it does not have (older Android versions).
+            log.log(TAG, "query $uri failed: $e")
+            emptyList()
+        }
     }
 
     private fun logoUri(channelId: Long): String = "content://$AUTHORITY/channel/$channelId/logo"

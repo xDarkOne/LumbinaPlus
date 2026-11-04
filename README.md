@@ -11,6 +11,8 @@ alongside Lumbina.
    Installation and permission grants require authorized local debugging. Choose the VIDAA online
    provider or download a Vosk model for offline recognition.
 3. Give LumbinaPlus notification access to use media sessions for **Continue watching**.
+   If the original Lumbina TV Provider is already installed, authorize local debugging in
+   **Access** to let LumbinaPlus read existing app channels, recommendations and posters.
 4. If you are keeping [VoiceKey](https://github.com/xDarkOne/voicekey) active, turn off
    **Intercept remote buttons** in LumbinaPlus to avoid both services handling the microphone.
 

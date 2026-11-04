@@ -10,3 +10,8 @@
 -keep class dev.lumbina.tv.platform.system.ViddaLocaleTool {
     public static void main(java.lang.String[]);
 }
+
+# Started by local adb to read the original TV provider as shell.
+-keep class dev.lumbina.tv.platform.tvprovider.TvProviderShell {
+    public static void main(java.lang.String[]);
+}
