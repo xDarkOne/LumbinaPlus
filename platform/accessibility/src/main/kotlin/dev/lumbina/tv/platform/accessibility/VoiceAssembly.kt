@@ -203,6 +203,7 @@ internal class VoiceAssembly(
 
     private fun strings() = VoiceController.Strings(
         listening = service.getString(R.string.voice_listening),
+        viddaConnecting = service.getString(R.string.voice_vidda_connecting),
         recognizing = service.getString(R.string.voice_recognizing),
         stillRecognizing = service.getString(R.string.voice_still_recognizing),
         notStarted = service.getString(R.string.voice_not_started),

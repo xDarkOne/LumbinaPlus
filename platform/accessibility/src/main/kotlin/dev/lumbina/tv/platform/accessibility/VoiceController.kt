@@ -52,6 +52,7 @@ internal class VoiceController(
     /** Overlay texts, from resources. */
     class Strings(
         val listening: String,
+        val viddaConnecting: String = listening,
         /** The button is let go and the phrase is being worked out. */
         val recognizing: String = "",
         /** The button was pressed again before that was done. */
@@ -124,11 +125,11 @@ internal class VoiceController(
         held = true
         working = false
         cancelled = false
-        overlay.show(strings.listening, Mark.Listening)
         if (useVidda && vidda.available()) {
             startVidda()
             return
         }
+        overlay.show(strings.listening, Mark.Listening)
         val events = if (endpoint == null) {
             sessions.pushToTalk { held }
         } else {
@@ -161,14 +162,23 @@ internal class VoiceController(
     private fun startVidda() {
         releaseAudio()
         viddaListening = true
+        overlay.show(strings.viddaConnecting, Mark.Working)
         job = scope.launch {
+            var ready = false
             try {
-                val text = vidda.listen { partial ->
-                    if (!cancelled && !working) overlay.show(strings.heard(partial), Mark.Listening)
-                }
+                val text = vidda.listen(
+                    onReady = {
+                        ready = true
+                        if (!cancelled && !working) overlay.show(strings.listening, Mark.Listening)
+                    },
+                    onPartial = { partial ->
+                        if (!cancelled && !working) overlay.show(strings.heard(partial), Mark.Listening)
+                    },
+                )
                 if (!cancelled) {
                     if (text == null) {
-                        answers.notice(strings.notHeard)
+                        if (ready) answers.notice(strings.notHeard)
+                        else answers.notice(strings.notStarted, Place.Voice)
                     } else {
                         overlay.flash(strings.heard(text), VoiceAnswers.toRead(text), Mark.Done)
                         answers.report(handle(text))

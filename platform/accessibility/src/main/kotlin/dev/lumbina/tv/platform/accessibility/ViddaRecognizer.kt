@@ -32,7 +32,7 @@ internal class ViddaRecognizer(private val context: Context) {
             pm.checkPermission(Manifest.permission.RECORD_AUDIO, context.packageName) == PackageManager.PERMISSION_GRANTED
     }
 
-    suspend fun listen(onPartial: (String) -> Unit): String? = withTimeout(TOTAL_TIMEOUT_MILLIS) {
+    suspend fun listen(onReady: () -> Unit, onPartial: (String) -> Unit): String? = withTimeout(TOTAL_TIMEOUT_MILLIS) {
         suspendCancellableCoroutine { continuation ->
             val recognizer = SpeechRecognizer.createSpeechRecognizer(context, COMPONENT)
             current = recognizer
@@ -49,7 +49,12 @@ internal class ViddaRecognizer(private val context: Context) {
             deadline = Runnable { if (!ready) finish(null) }
             handler.postDelayed(deadline, CONNECT_TIMEOUT_MILLIS)
             recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { ready = true }
+                override fun onReadyForSpeech(params: Bundle?) {
+                    if (!continuation.isActive || ready) return
+                    ready = true
+                    handler.removeCallbacks(deadline)
+                    onReady()
+                }
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
