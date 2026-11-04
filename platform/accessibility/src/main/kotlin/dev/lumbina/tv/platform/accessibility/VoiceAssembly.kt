@@ -37,6 +37,7 @@ import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 /** Wires the voice pipeline (mic → recognition → text delivery → overlay) for the service. */
 internal class VoiceAssembly(
@@ -87,6 +88,8 @@ internal class VoiceAssembly(
                 .setPackage("com.vk.tv"),
         )
 
+        VideoSearchTarget.Kinopoisk -> kinopoiskTitle(query)?.let(::startSearch) == true
+
         VideoSearchTarget.Lampa -> startSearch(
             Intent(Intent.ACTION_SEARCH)
                 .setComponent(ComponentName("top.rootu.lampa", "top.rootu.lampa.MainActivity"))
@@ -94,6 +97,37 @@ internal class VoiceAssembly(
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
         )
     }
+
+    private suspend fun kinopoiskTitle(query: String): Intent? = withContext(Dispatchers.IO) {
+        val suggestions = Uri.parse("content://ru.kinopoisk.tv.search.kinopoisk.tv/search_suggest_query?limit=10")
+        val wanted = comparableTitle(query)
+        try {
+            service.contentResolver.query(suggestions, null, null, arrayOf(query), null)?.use { rows ->
+                val titleColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_TEXT_1)
+                val linkColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_DATA)
+                val actionColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_ACTION)
+                if (titleColumn < 0 || linkColumn < 0) return@use null
+                var best: Intent? = null
+                while (rows.moveToNext()) {
+                    val title = comparableTitle(rows.getString(titleColumn).orEmpty())
+                    val link = rows.getString(linkColumn)?.takeIf { it.isNotBlank() } ?: continue
+                    val exact = title == wanted
+                    val prefix = title.isNotEmpty() && (title.startsWith("$wanted ") || wanted.startsWith("$title "))
+                    if (!exact && (!prefix || best != null)) continue
+                    val action = if (actionColumn < 0) null else rows.getString(actionColumn)
+                    best = Intent(action ?: Intent.ACTION_VIEW, Uri.parse(link)).setPackage("ru.kinopoisk.tv")
+                    if (exact) break
+                }
+                best
+            }
+        } catch (e: RuntimeException) {
+            log.log("voice", "Kinopoisk search unavailable: $e")
+            null
+        }
+    }
+
+    private fun comparableTitle(title: String): String =
+        title.lowercase().replace('ё', 'е').replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
     private fun startSearch(intent: Intent): Boolean = try {
         service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

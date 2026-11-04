@@ -27,6 +27,8 @@ class VoiceCommandParserTest {
         "go to settings" to OpenApp("settings"),
         // Search
         "найди котики" to Search("котики"),
+        "Открой на Кинопоиске Любовь и голуби" to Search("любовь и голуби", VideoSearchTarget.Kinopoisk),
+        "найди любовь и голуби в кинопоиске" to Search("любовь и голуби", VideoSearchTarget.Kinopoisk),
         "Найди на ютубе: «Трейлер Дюны»" to Search("трейлер дюны", VideoSearchTarget.YouTube),
         "поищи в ВК Видео обзор" to Search("обзор", VideoSearchTarget.VkVideo),
         "найди в лампе дюну" to Search("дюну", VideoSearchTarget.Lampa),

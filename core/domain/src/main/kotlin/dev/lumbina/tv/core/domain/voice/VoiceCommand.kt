@@ -21,7 +21,7 @@ sealed interface VoiceCommand {
     data class Sleep(val minutes: Int?) : VoiceCommand
 }
 
-enum class VideoSearchTarget { YouTube, VkVideo, Lampa }
+enum class VideoSearchTarget { YouTube, VkVideo, Lampa, Kinopoisk }
 
 enum class VolumeChange { Up, Down, Mute, Unmute, ToggleMute }
 
@@ -59,13 +59,26 @@ object VoiceCommandParser {
     private fun withArgument(phrase: String): VoiceCommand? {
         SEARCH.matchEntire(phrase)?.let {
             val query = it.groupValues.last().trim()
-            return TARGETED_SEARCH.firstNotNullOfOrNull { (pattern, target) ->
-                pattern.matchEntire(query)?.let { match -> VoiceCommand.Search(match.groupValues[1], target) }
-            } ?: VoiceCommand.Search(query)
+            return targetedSearch(query) ?: VoiceCommand.Search(query)
         }
-        OPEN.matchEntire(phrase)?.let { return VoiceCommand.OpenApp(it.groupValues.last().trim()) }
+        OPEN.matchEntire(phrase)?.let {
+            val query = it.groupValues.last().trim()
+            return targetedSearch(query) ?: VoiceCommand.OpenApp(query)
+        }
         return null
     }
+
+    private fun targetedSearch(query: String): VoiceCommand.Search? =
+        TARGETED_SEARCH.firstNotNullOfOrNull { (app, target) ->
+            val prefix = app.find(query)?.takeIf { it.range.first == 0 }
+            val suffix = app.findAll(query).lastOrNull { it.range.last == query.lastIndex }
+            val title = when {
+                prefix != null -> query.drop(prefix.range.last + 1).trim()
+                suffix != null -> query.take(suffix.range.first).trim()
+                else -> ""
+            }
+            title.takeIf { it.isNotEmpty() }?.let { VoiceCommand.Search(it, target) }
+        }
 
     /** Lowercase, `ё` as `е`, no punctuation, no polite fillers or the launcher's name. */
     internal fun normalize(text: String): String {
@@ -125,10 +138,11 @@ object VoiceCommandParser {
     private val THIS_APP = setOf("приложение", "это", "это приложение", "app", "the app", "this", "this app", "it")
 
     private val TARGETED_SEARCH = listOf(
-        r("(?:на|в|on|in) (?:ютуб(?:е)?|ютьюб(?:е)?|ю туб(?:е)?|youtube|you tube|tizentube) (.+)") to
+        r("(?:^| )(?:на|в|on|in) (?:ютуб(?:е)?|ютьюб(?:е)?|ю туб(?:е)?|youtube|you tube|tizentube)(?= |$)") to
             VideoSearchTarget.YouTube,
-        r("(?:на|в|on|in) (?:вк видео|вк|vk video|vk) (.+)") to VideoSearchTarget.VkVideo,
-        r("(?:на|в|on|in) (?:лампе|лампочке|lampa) (.+)") to VideoSearchTarget.Lampa,
+        r("(?:^| )(?:на|в|on|in) (?:вк видео|вк|vk video|vk)(?= |$)") to VideoSearchTarget.VkVideo,
+        r("(?:^| )(?:на|в|on|in) (?:лампе|лампочке|lampa)(?= |$)") to VideoSearchTarget.Lampa,
+        r("(?:^| )(?:на|в|on|in) (?:кинопоиске?|кино поиске?|kinopoisk)(?= |$)") to VideoSearchTarget.Kinopoisk,
     )
     private val SEARCH = r("(найди|найти|поищи|ищи|поиск|search for|search|find|look for) (.+)")
     private val OPEN = r(

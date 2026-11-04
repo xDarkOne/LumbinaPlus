@@ -7,6 +7,7 @@
 
     <queries>
         <package android:name="org.vidda.googlevoicesearch" />
+        <package android:name="ru.kinopoisk.tv" />
     </queries>
 
     <application>
