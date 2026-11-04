@@ -24,6 +24,14 @@ internal class AdbConnection private constructor(
     /** The most the device takes in one message; it says so when the connection is made. */
     private var maxData = AdbMessage.MAX_DATA
 
+    fun tizenTubePages(): String? {
+        val request = "GET /json/list HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        val reply =
+            run("localabstract:content_shell_devtools_remote", request.byteInputStream(), 1_000, ::completeHttpReply)
+        return reply.takeIf { it.startsWith("HTTP/1.0 200 ") || it.startsWith("HTTP/1.1 200 ") }
+            ?.substringAfter("\r\n\r\n")
+    }
+
     /** Runs [command] in `shell:` and returns everything it printed. */
     fun shell(command: String, timeoutMillis: Int): String = run("shell:$command", null, timeoutMillis)
 
@@ -43,7 +51,12 @@ internal class AdbConnection private constructor(
      * Opens [service] and talks to it until the device closes the stream. The device allows one
      * message of ours at a time: each piece of [input] goes after its answer to the one before.
      */
-    private fun run(service: String, input: InputStream?, timeoutMillis: Int): String {
+    private fun run(
+        service: String,
+        input: InputStream?,
+        timeoutMillis: Int,
+        isComplete: ((ByteArray) -> Boolean)? = null,
+    ): String {
         socket.soTimeout = timeoutMillis
         val localId = nextLocalId++
         send(AdbMessage(AdbMessage.OPEN, localId, 0, "$service\u0000".toByteArray()))
@@ -56,6 +69,10 @@ internal class AdbConnection private constructor(
                 AdbMessage.WRTE -> {
                     out.write(message.data)
                     send(AdbMessage(AdbMessage.OKAY, localId, message.arg0))
+                    if (isComplete?.invoke(out.toByteArray()) == true) {
+                        send(AdbMessage(AdbMessage.CLSE, localId, message.arg0))
+                        return out.toString(Charsets.UTF_8.name())
+                    }
                 }
 
                 AdbMessage.CLSE -> {
@@ -160,4 +177,16 @@ private fun InputStream.readFully(buffer: ByteArray): Int {
         total += read
     }
     return total
+}
+
+private fun completeHttpReply(bytes: ByteArray): Boolean {
+    // Header offsets must stay in bytes even when the JSON contains non-ASCII titles.
+    val reply = bytes.toString(Charsets.ISO_8859_1)
+    val separator = "\r\n\r\n"
+    val headerEnd = reply.indexOf(separator)
+    if (headerEnd < 0) return false
+    val header = reply.substring(0, headerEnd).lineSequence()
+        .firstOrNull { it.startsWith("Content-Length:", ignoreCase = true) }
+    val length = header?.substringAfter(':')?.trim()?.toIntOrNull() ?: return false
+    return length in 0..(bytes.size - headerEnd - separator.length)
 }

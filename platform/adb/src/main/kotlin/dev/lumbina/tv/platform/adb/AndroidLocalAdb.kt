@@ -1,8 +1,10 @@
 package dev.lumbina.tv.platform.adb
 
 import android.content.Context
+import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.common.TizenTubeWatchNext
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAdb
 import java.io.File
@@ -15,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONException
 
 /**
  * [LocalAdb] over the device's own adbd on the loopback address, one short connection per call.
@@ -42,6 +46,9 @@ internal class AndroidLocalAdb @Inject constructor(
         log.log(TAG, "shell \"$command\": ${if (result.value != null) "ok" else result.state}")
         return result.value
     }
+
+    override suspend fun tizenTubePlayingId(): String? =
+        open(offerKey = false) { it.tizenTubePages()?.let(::playingId) }.value
 
     override suspend fun exec(command: String, input: InputStream): String? {
         val result = open(offerKey = false) { it.exec(command, input, EXEC_TIMEOUT_MILLIS) }
@@ -80,4 +87,20 @@ internal class AndroidLocalAdb @Inject constructor(
         // device may take a while over writing the package before that.
         const val EXEC_TIMEOUT_MILLIS = 120_000
     }
+}
+
+/** Accept only a YouTube TV watch route, never a recommendation or search result. */
+private fun playingId(pages: String): String? = try {
+    val targets = JSONArray(pages)
+    (0 until targets.length()).mapNotNull { index ->
+        val page = targets.optJSONObject(index) ?: return@mapNotNull null
+        if (page.optString("type") != "page") return@mapNotNull null
+        val url = Uri.parse(page.optString("url"))
+        if (url.scheme != "https" || url.host != "www.youtube.com" || url.path != "/tv") return@mapNotNull null
+        val route = Uri.parse(url.fragment.orEmpty())
+        if (route.path != "/watch") return@mapNotNull null
+        route.getQueryParameter("v")?.takeIf(TizenTubeWatchNext.VIDEO_ID::matches)
+    }.distinct().singleOrNull()
+} catch (_: JSONException) {
+    null
 }

@@ -61,6 +61,9 @@ interface LocalAdb {
      */
     suspend fun exec(command: String, input: ByteArray): String? = exec(command, input.inputStream())
 
+    /** Reads the video ID from TizenTube Cobalt’s local watch page, if available. */
+    suspend fun tizenTubePlayingId(): String? = null
+
     /** As the other [exec], reading [input] as it goes: a package need not fit in memory whole. */
     suspend fun exec(command: String, input: InputStream): String? = null
 }

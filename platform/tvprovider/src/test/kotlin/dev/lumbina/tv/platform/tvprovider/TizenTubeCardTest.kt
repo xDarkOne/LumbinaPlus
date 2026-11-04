@@ -23,6 +23,16 @@ class TizenTubeCardTest {
     }
 
     @Test
+    fun `obsolete VoiceKey title search does not replace a local video`() {
+        val search = fallback.copy(
+            id = 1,
+            packageName = "dev.xdark.voicekey",
+            intentUri = "intent://www.youtube.com/tv?launch=voice&va=search#Intent;scheme=https;end",
+        )
+        assertEquals(listOf(fallback), mergeTizenTubeCard(listOf(search to 1L), fallback to 2L))
+    }
+
+    @Test
     fun `different videos and unrelated apps remain visible`() {
         val other = fallback.copy(id = 2, packageName = "tv.other")
         val anotherVideo = fallback.copy(id = 3, title = "Other")

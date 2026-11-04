@@ -39,10 +39,13 @@ import java.net.URISyntaxException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
@@ -183,7 +186,7 @@ internal class AndroidTvChannels @Inject constructor(
             val id = prefs.getString(LocalCard.MEDIA_ID, null)
             val position = prefs.getLong(LocalCard.POSITION, 0)
             val duration = prefs.getLong(LocalCard.DURATION, 0)
-            val intent = id?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }?.let { video ->
+            val intent = id?.takeIf { LocalCard.VIDEO_ID.matches(it) }?.let { video ->
                 val url = Uri.parse("https://www.youtube.com/watch").buildUpon()
                     .appendQueryParameter("v", video).appendQueryParameter("t", "${position / 1000}s").build()
                 Intent(Intent.ACTION_VIEW, url).toUri(Intent.URI_INTENT_SCHEME)
@@ -299,46 +302,74 @@ internal class CursorRow(private val cursor: Cursor) : TvRow {
 internal class AndroidProgramLauncher @Inject constructor(
     @ApplicationContext private val context: Context,
     private val log: LumbinaLog,
+    private val adb: LocalAdb,
 ) : ProgramLauncher {
 
+    private var retry: Job? = null
+
     override fun open(card: ProgramCard): Boolean {
-        val intent = resumeTizenTube(card) ?: card.intentUri?.let(::parse)?.apply {
+        retry?.cancel()
+        if (card.id == LocalCard.CARD_ID && card.packageName == LocalCard.PACKAGE) return openTizenTube(card)
+        val intent = card.intentUri?.let(::parse)?.apply {
             setPackage(card.packageName)
             selector = null
             flags = 0 // none of the row's own flags, such as URI permission grants
         } ?: context.packageManager.getLeanbackLaunchIntentForPackage(card.packageName)
             ?: context.packageManager.getLaunchIntentForPackage(card.packageName)
             ?: return false
-        return try {
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            true
-        } catch (e: ActivityNotFoundException) {
-            log.log(TAG, "open ${card.packageName} ${card.id} failed: $e")
-            false
-        } catch (e: SecurityException) {
-            log.log(TAG, "open ${card.packageName} ${card.id} not allowed: $e")
-            false
-        }
+        return start(intent, card)
     }
 
-    private fun resumeTizenTube(card: ProgramCard): Intent? {
-        if (card.id != LocalCard.CARD_ID || card.packageName != LocalCard.PACKAGE) return null
-        val listener = ComponentName(context, LumbinaComponents.NOTIFICATION_LISTENER)
-        val sessions = try {
-            context.getSystemService(MediaSessionManager::class.java).getActiveSessions(listener)
-        } catch (_: SecurityException) {
-            return null
-        }
-        val sameVideo = sessions.any { session ->
-            session.packageName == card.packageName &&
-                session.playbackState?.state in setOf(PlaybackState.STATE_PLAYING, PlaybackState.STATE_PAUSED) &&
-                session.metadata?.description?.title?.toString()?.trim() == card.title.trim()
-        }
-        return if (sameVideo) {
+    private fun start(intent: Intent, card: ProgramCard): Boolean = try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    } catch (e: ActivityNotFoundException) {
+        log.log(TAG, "open ${card.packageName} ${card.id} failed: $e")
+        false
+    } catch (e: SecurityException) {
+        log.log(TAG, "open ${card.packageName} ${card.id} not allowed: $e")
+        false
+    }
+
+    private fun openTizenTube(card: ProgramCard): Boolean {
+        val url = card.intentUri?.let(::parse)?.data
+        val id = url?.getQueryParameter("v")
+        val resume = if (isTizenTubeSession(card)) {
             context.packageManager.getLeanbackLaunchIntentForPackage(card.packageName)
                 ?: context.packageManager.getLaunchIntentForPackage(card.packageName)
         } else {
             null
+        }
+        if (url == null || id == null) return resume?.let { start(it, card) } ?: false
+        val intent = Intent(Intent.ACTION_VIEW, url)
+            .setClassName(LocalCard.PACKAGE, LocalCard.ACTIVITY)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (!start(resume ?: intent, card)) return false
+        retry = CoroutineScope(Dispatchers.Main).launch {
+            // Cobalt can drop the initial link while its web app is starting.
+            delay(STARTUP_DELAY)
+            if (adb.tizenTubePlayingId() == id) return@launch
+            if (isTizenTubeInFront()) start(intent, card)
+        }
+        return true
+    }
+
+    private suspend fun isTizenTubeInFront(): Boolean =
+        adb.shell("dumpsys activity activities | grep mResumedActivity")?.lineSequence()?.any {
+            it.contains(" ${LocalCard.PACKAGE}/")
+        } == true
+
+    private fun isTizenTubeSession(card: ProgramCard): Boolean {
+        val listener = ComponentName(context, LumbinaComponents.NOTIFICATION_LISTENER)
+        val sessions = try {
+            context.getSystemService(MediaSessionManager::class.java).getActiveSessions(listener)
+        } catch (_: SecurityException) {
+            return false
+        }
+        return sessions.any { session ->
+            session.packageName == card.packageName &&
+                session.playbackState?.state in setOf(PlaybackState.STATE_PLAYING, PlaybackState.STATE_PAUSED) &&
+                session.metadata?.description?.title?.toString()?.trim() == card.title.trim()
         }
     }
 
@@ -351,6 +382,7 @@ internal class AndroidProgramLauncher @Inject constructor(
 
     private companion object {
         const val TAG = "channels"
+        const val STARTUP_DELAY = 5_000L
     }
 }
 
@@ -374,11 +406,12 @@ internal fun mergeTizenTubeCard(
     providerCards: List<Pair<ProgramCard, Long?>>,
     local: Pair<ProgramCard, Long>?,
 ): List<ProgramCard> {
-    val alreadyPublished = local != null && providerCards.any { (card) ->
+    val playable = providerCards.filterNot { (card) -> isLegacyYouTubeSearch(card) }
+    val alreadyPublished = local != null && playable.any { (card) ->
         card.packageName in setOf(LocalCard.PACKAGE, "dev.xdark.voicekey") &&
             card.title.trim().equals(local.first.title.trim(), ignoreCase = true)
     }
-    val cards = if (local != null && !alreadyPublished) providerCards + local else providerCards
+    val cards = if (local != null && !alreadyPublished) playable + local else playable
     return cards.sortedByDescending { it.second ?: 0L }.map { it.first }
 }
 
@@ -399,3 +432,7 @@ internal fun mergeLocalCards(
     timestamps[lampa.first] = lampa.second
     return (tizenCards + lampa.first).sortedByDescending { timestamps[it] ?: 0L }
 }
+
+/** Old VoiceKey YouTube cards stored a title search rather than a playable video. */
+private fun isLegacyYouTubeSearch(card: ProgramCard): Boolean = card.packageName == "dev.xdark.voicekey" &&
+    card.intentUri?.startsWith("intent://www.youtube.com/tv?launch=voice&") == true

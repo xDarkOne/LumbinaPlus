@@ -22,8 +22,9 @@ alongside Lumbina.
   screen. You can also name the app in the command, for example
   “открой на Кинопоиске Любовь и голуби” or “найди на Рутубе обзор проектора”.
 - **Continue watching** uses local media-session data for TizenTube and LAMPA films in Vimu.
-  TizenTube cards open the video when an ID is available, or bring TizenTube back to the front
-  when it isn't. Vimu posters are shown when the player supplies them.
+  TizenTube cards save the video ID from the media session or, with local debugging authorized,
+  from Cobalt's local watch page. They reopen that video or resume the matching active session.
+  Vimu posters are shown when the player supplies them.
 - **Remote buttons** includes an optional Russian overlay for VIDAA menus. It uses the launcher's
   accessibility service and is off by default.
 - **Access** can set and remember the VIDAA system language on supported projectors.

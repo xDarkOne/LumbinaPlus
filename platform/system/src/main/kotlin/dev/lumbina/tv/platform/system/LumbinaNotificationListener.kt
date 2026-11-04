@@ -19,6 +19,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LampaWatchNext
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.access.LocalAdb
 import dev.lumbina.tv.core.domain.status.Notice
 import dev.lumbina.tv.core.domain.status.NotificationFeed
 import javax.inject.Inject
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.map
 class LumbinaNotificationListener : NotificationListenerService() {
     @Inject lateinit var log: LumbinaLog
 
+    @Inject lateinit var adb: LocalAdb
+
     private var tizenTubeHistory: TizenTubeHistory? = null
     private var lampaVimuHistory: LampaVimuHistory? = null
     private var lampaReceiverRegistered = false
@@ -48,7 +51,7 @@ class LumbinaNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         NotificationStore.connected(this)
         tizenTubeHistory?.stop()
-        tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log).also { it.start() }
+        tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log, adb).also { it.start() }
         lampaVimuHistory?.stop()
         lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         if (!lampaReceiverRegistered) {

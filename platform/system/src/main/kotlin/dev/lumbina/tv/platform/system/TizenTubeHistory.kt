@@ -13,20 +13,28 @@ import android.os.Looper
 import android.os.SystemClock
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.common.TizenTubeWatchNext as Card
+import dev.lumbina.tv.core.domain.access.LocalAdb
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /** Keeps the last partly watched TizenTube video when its media session is available. */
 internal class TizenTubeHistory(
     private val context: Context,
     private val listener: ComponentName,
     private val log: LumbinaLog,
+    private val adb: LocalAdb,
 ) {
     private val manager = context.getSystemService(MediaSessionManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private val preferences = context.getSharedPreferences(Card.PREFERENCES, Context.MODE_PRIVATE)
     private var controller: MediaController? = null
     private var title: String? = null
+    private var lookup: Job? = null
+    private var lastAddressedVideo: Pair<String, String>? = null
     private var artist: String? = null
     private var mediaId: String? = null
     private var duration = 0L
@@ -57,10 +65,14 @@ internal class TizenTubeHistory(
         }
     }
     private val sessions = MediaSessionManager.OnActiveSessionsChangedListener { attach(it.orEmpty()) }
+    private var lastSave = 0L
     private val tick = object : Runnable {
         override fun run() {
-            if (playing) save()
-            handler.postDelayed(this, SAVE_INTERVAL)
+            if (playing) {
+                if (mediaId == null) findPlayingId()
+                if (SystemClock.elapsedRealtime() - lastSave >= SAVE_INTERVAL) save()
+            }
+            handler.postDelayed(this, LOOKUP_INTERVAL)
         }
     }
 
@@ -68,7 +80,7 @@ internal class TizenTubeHistory(
         try {
             manager.addOnActiveSessionsChangedListener(sessions, listener, handler)
             attach(manager.getActiveSessions(listener))
-            handler.postDelayed(tick, SAVE_INTERVAL)
+            handler.postDelayed(tick, LOOKUP_INTERVAL)
         } catch (e: SecurityException) {
             log.log(TAG, "media session access unavailable: $e")
         }
@@ -96,6 +108,8 @@ internal class TizenTubeHistory(
     private fun detach() {
         controller?.unregisterCallback(callback)
         controller = null
+        lookup?.cancel()
+        lookup = null
         title = null
         artist = null
         mediaId = null
@@ -113,6 +127,11 @@ internal class TizenTubeHistory(
             ?.takeIf { it.isNotBlank() }
 
     private fun read(metadata: MediaMetadata, nextTitle: String) {
+        if (title != nextTitle) {
+            lookup?.cancel()
+            lookup = null
+            mediaId = null
+        }
         title = nextTitle
         artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
         mediaId = sequenceOf(
@@ -123,10 +142,8 @@ internal class TizenTubeHistory(
             metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
             metadata.description.mediaUri?.toString(),
             metadata.description.iconUri?.toString(),
-        ).filterNotNull().firstNotNullOfOrNull(::youtubeVideoId)
-        if (mediaId == null && nextTitle != artworkTitle) {
-            log.log(TAG, "no video ID in media metadata; keys=${metadata.keySet().sorted()}")
-        }
+        ).filterNotNull().firstNotNullOfOrNull(::youtubeVideoId) ?: mediaId
+        mediaId?.let { lastAddressedVideo = nextTitle to it }
         duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
         val next = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
@@ -143,8 +160,23 @@ internal class TizenTubeHistory(
         }
     }
 
+    private fun findPlayingId() {
+        val current = controller ?: return
+        val name = title ?: return
+        if (lookup?.isActive == true) return
+        lookup = CoroutineScope(Dispatchers.Main).launch {
+            val id = adb.tizenTubePlayingId() ?: return@launch
+            if (controller != current || title != name || mediaId != null) return@launch
+            val previous = lastAddressedVideo
+            if (previous?.second == id && previous.first != name) return@launch
+            mediaId = id
+            lastAddressedVideo = name to id
+            save()
+        }
+    }
+
     private fun youtubeVideoId(value: String): String? {
-        if (VIDEO_ID.matches(value)) return value
+        if (Card.VIDEO_ID.matches(value)) return value
         val uri = Uri.parse(value)
         if (!uri.isHierarchical) return null
         val path = uri.pathSegments
@@ -162,7 +194,7 @@ internal class TizenTubeHistory(
 
             else -> null
         }
-        return candidate?.takeIf(VIDEO_ID::matches)
+        return candidate?.takeIf(Card.VIDEO_ID::matches)
     }
 
     private fun readState(state: PlaybackState?) {
@@ -175,10 +207,12 @@ internal class TizenTubeHistory(
 
     private fun save() {
         val name = title ?: return
+        val savedId = preferences.getString(Card.MEDIA_ID, null)
+        // Keep a playable card while this session is still resolving its address.
+        if (savedId != null && mediaId == null) return
         val elapsed = if (playing && positionAt > 0) SystemClock.elapsedRealtime() - positionAt else 0L
         val at = (position + (elapsed.coerceAtLeast(0) * speed).toLong()).coerceAtLeast(0)
         if (duration >= MIN_DURATION && at >= duration * DONE_SHARE) {
-            val savedId = preferences.getString(Card.MEDIA_ID, null)
             val sameVideo = if (mediaId != null && savedId != null) {
                 mediaId == savedId
             } else {
@@ -188,6 +222,7 @@ internal class TizenTubeHistory(
             return
         }
         if (at < MIN_POSITION || duration in 1 until MIN_DURATION) return
+        lastSave = SystemClock.elapsedRealtime()
         val artPath = saveArtwork(name)
         preferences.edit().putString(Card.TITLE, name).putString(Card.ARTIST, artist)
             .putString(Card.MEDIA_ID, mediaId).putLong(Card.DURATION, duration)
@@ -208,8 +243,8 @@ internal class TizenTubeHistory(
     }
 
     private companion object {
-        val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
         const val TAG = "tizentube-history"
+        const val LOOKUP_INTERVAL = 6_000L
         const val SAVE_INTERVAL = 60_000L
         const val MIN_DURATION = 60_000L
         const val MIN_POSITION = 5_000L
