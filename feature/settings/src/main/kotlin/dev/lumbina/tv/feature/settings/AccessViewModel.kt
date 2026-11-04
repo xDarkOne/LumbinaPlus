@@ -14,8 +14,11 @@ import dev.lumbina.tv.core.domain.access.withMicApp
 import dev.lumbina.tv.core.domain.access.withoutMicApp
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.locale.ViddaLanguage
+import dev.lumbina.tv.core.domain.locale.ViddaSystemLanguage
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import dev.lumbina.tv.core.ui.serviceScope
+import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -60,6 +63,8 @@ interface AccessCommands {
     fun toggleMicApp(app: MicApp)
 
     fun forgetMicApp(app: MicApp)
+
+    fun setSystemLanguage(language: ViddaLanguage?)
 }
 
 @HiltViewModel
@@ -70,11 +75,21 @@ class AccessViewModel @Inject constructor(
     private val usage: UsageAccess,
     installed: InstalledApps,
     profile: DeviceProfile,
+    private val systemLanguage: ViddaSystemLanguage,
 ) : ViewModel(),
     AccessCommands {
 
     /** What the consent says the service does here. */
     val serviceScope = profile.serviceScope()
+
+    val canSetSystemLanguage: Boolean get() = systemLanguage.supported
+
+    val activeSystemLanguage: String get() = systemLanguage.activeTag
+
+    private val localeStatus = MutableStateFlow<LocaleStatus?>(null)
+    val systemLanguageStatus: StateFlow<LocaleStatus?> = localeStatus
+
+    enum class LocaleStatus { Applying, Saved, Failed }
 
     private val refresh = Channel<Unit>(Channel.CONFLATED)
     private val connecting = MutableStateFlow(false)
@@ -146,6 +161,21 @@ class AccessViewModel @Inject constructor(
 
     override fun forgetMicApp(app: MicApp) {
         viewModelScope.launch { settings.update { it.withoutMicApp(app.packageName) } }
+    }
+
+    override fun setSystemLanguage(language: ViddaLanguage?) {
+        if (!canSetSystemLanguage || localeStatus.value == LocaleStatus.Applying) return
+        localeStatus.value = LocaleStatus.Applying
+        viewModelScope.launch {
+            try {
+                val saved = systemLanguage.select(language)
+                localeStatus.value = if (saved) LocaleStatus.Saved else LocaleStatus.Failed
+            } catch (_: IOException) {
+                localeStatus.value = LocaleStatus.Failed
+            } finally {
+                if (localeStatus.value == LocaleStatus.Applying) localeStatus.value = LocaleStatus.Failed
+            }
+        }
     }
 
     private data class Device(val adb: AdbState?, val keepsService: Boolean, val usageGranted: Boolean)

@@ -51,6 +51,7 @@ internal class VoiceAssembly(
     private val micServiceOff: () -> Boolean,
 ) {
     val sessions = VoiceSessions(engine)
+    val vidda = ViddaRecognizer(service)
 
     /** Where what was said is looked for: YouTube on a command to, the user's search for a phrase on a launcher. */
     class Searches(val youTube: YouTubeSearch, val chosen: Search)
@@ -155,7 +156,9 @@ internal class VoiceAssembly(
             pushToTalk = sessions.pushToTalk(warm, language::languages),
             handsFree = sessions.handsFree(warm, language::languages),
         )
-        return VoiceController(scope, listened, language, utterances(), plate, strings(), log)
+        return VoiceController(scope, listened, language, utterances(), plate, strings(), log, vidda) {
+            (warm as? WarmAudioSource)?.stop()
+        }
     }
 
     /** Speech for other apps ([RecognizeSpeechActivity], [LumbinaRecognitionService]), reading [warm]. */

@@ -241,7 +241,13 @@ private fun AccessPage(viewModel: AccessViewModel = hiltViewModel()) {
             }
         }
     }
-    AccessPanel(state = state, commands = commands)
+    val localeStatus by viewModel.systemLanguageStatus.collectAsStateWithLifecycle()
+    AccessPanel(
+        state = state,
+        commands = commands,
+        activeSystemLanguage = viewModel.activeSystemLanguage.takeIf { viewModel.canSetSystemLanguage },
+        localeStatus = localeStatus,
+    )
     ServiceConsentDialog(consent, viewModel.serviceScope)
 }
 

@@ -531,4 +531,15 @@
     <string name="buttons_voicekey_settings">Настройки VoiceKey</string>
     <string name="buttons_translator">Перевод системных экранов</string>
     <string name="buttons_translator_hint">Переводит поддерживаемые меню VIDAA на русский. Нужен перехват кнопок пульта.</string>
+    <string name="voice_provider_vidda">Голосовой сервис Vidda</string>
+    <string name="voice_provider_vidda_hint">Нужен голосовой сервис Vidda с разрешением на микрофон. Если он недоступен, используется офлайн-модель.</string>
+    <string name="access_system_language">Язык системы VIDAA</string>
+    <string name="access_system_language_active">Текущий язык системы: %1$s</string>
+    <string name="access_system_language_applying">Применяем…</string>
+    <string name="access_system_language_saved">Сохранено: %1$s. Перезагрузите проектор.</string>
+    <string name="access_system_language_failed">Прошивка не подтвердила изменение.</string>
+    <string name="access_system_language_forgotten">Автоматическое восстановление выключено.</string>
+    <string name="access_system_language_forget">Не восстанавливать выбранный язык</string>
+    <string name="access_system_language_hint">Меняет язык всего проектора и восстанавливает выбор, если прошивка его сбросит.</string>
+    <string name="access_system_language_adb">Для смены языка подключитесь к отладке проектора.</string>
 </resources>

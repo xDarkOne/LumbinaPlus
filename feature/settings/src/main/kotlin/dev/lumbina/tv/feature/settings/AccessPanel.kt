@@ -25,7 +25,10 @@ import dev.lumbina.tv.core.designsystem.colorOf
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.SetupResult
 import dev.lumbina.tv.core.domain.home.Accent
+import dev.lumbina.tv.core.domain.locale.ViddaLanguage
 import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.ui.Choice
+import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.ConfirmDialog
 import kotlinx.coroutines.flow.first
 
@@ -34,7 +37,13 @@ import kotlinx.coroutines.flow.first
  * the way to connect), each use with its switch, and how to take the access back.
  */
 @Composable
-fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifier = Modifier) {
+fun AccessPanel(
+    state: AccessState?,
+    commands: AccessCommands,
+    modifier: Modifier = Modifier,
+    activeSystemLanguage: String? = null,
+    localeStatus: AccessViewModel.LocaleStatus? = null,
+) {
     if (state == null) return
     val connected = state.adb == AdbState.Connected
     // The page's first row: where the focus goes when the row it stood on is taken away.
@@ -51,6 +60,9 @@ fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifie
         connection(state, commands, top)
         item { Header(stringResource(R.string.access_uses)) }
         uses(state, connected, commands)
+        if (activeSystemLanguage != null) item(key = "vidda-system-language") {
+            SystemLanguageRow(activeSystemLanguage, state.settings.systemLanguage, connected, localeStatus, commands)
+        }
         state.micApps?.let { micApps(it, commands, forget) }
         // With debugging off there is no access to take back, and nothing for the network to reach.
         if (state.adb != null && state.adb != AdbState.Off) {
@@ -75,6 +87,56 @@ fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifie
             cancelLabel = stringResource(R.string.action_cancel),
             onConfirm = { forget.confirm(app) },
             onDismiss = { forget.asking = null },
+        )
+    }
+}
+
+@Composable
+private fun SystemLanguageRow(
+    active: String,
+    saved: ViddaLanguage?,
+    connected: Boolean,
+    status: AccessViewModel.LocaleStatus?,
+    commands: AccessCommands,
+) {
+    var choosing by remember { mutableStateOf(false) }
+    val title = stringResource(R.string.access_system_language)
+    val summary = when (status) {
+        AccessViewModel.LocaleStatus.Applying -> stringResource(R.string.access_system_language_applying)
+        AccessViewModel.LocaleStatus.Saved -> if (saved == null) {
+            stringResource(R.string.access_system_language_forgotten)
+        } else {
+            stringResource(R.string.access_system_language_saved, saved.tag)
+        }
+        AccessViewModel.LocaleStatus.Failed -> stringResource(R.string.access_system_language_failed)
+        null -> stringResource(R.string.access_system_language_active, active)
+    }
+    SettingRow(
+        onClick = { if (status != AccessViewModel.LocaleStatus.Applying) choosing = true },
+        headlineContent = { Text(title) },
+        supportingContent = { Text(summary) },
+    )
+    if (choosing) {
+        val choices = buildList {
+            if (connected) {
+                add(Choice("Русский", chosen = saved == ViddaLanguage.Russian) {
+                    commands.setSystemLanguage(ViddaLanguage.Russian)
+                })
+                add(Choice("English", chosen = saved == ViddaLanguage.English) {
+                    commands.setSystemLanguage(ViddaLanguage.English)
+                })
+            }
+            if (saved != null) add(Choice(stringResource(R.string.access_system_language_forget)) {
+                commands.setSystemLanguage(null)
+            })
+        }
+        ChoiceDialog(
+            title = title,
+            choices = choices,
+            onDismiss = { choosing = false },
+            hint = stringResource(
+                if (connected) R.string.access_system_language_hint else R.string.access_system_language_adb,
+            ),
         )
     }
 }

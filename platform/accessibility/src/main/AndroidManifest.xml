@@ -5,6 +5,10 @@
          the asking app's (LumbinaRecognitionService). The audio comes from the remote. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <queries>
+        <package android:name="org.vidda.googlevoicesearch" />
+    </queries>
+
     <application>
         <!-- Apart from the UI, so keys never wait for its main thread. -->
         <service

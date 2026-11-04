@@ -4,11 +4,17 @@ import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import androidx.core.content.ContextCompat
+import dev.lumbina.tv.core.common.LampaWatchNext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.status.Notice
 import dev.lumbina.tv.core.domain.status.NotificationFeed
@@ -26,12 +32,27 @@ import kotlinx.coroutines.flow.map
 class LumbinaNotificationListener : NotificationListenerService() {
 
     private var tizenTubeHistory: TizenTubeHistory? = null
+    private var lampaVimuHistory: LampaVimuHistory? = null
+    private var lampaReceiverRegistered = false
+    private val lampaWindowReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent?.getStringExtra(LampaWatchNext.DESTINATION)?.let { lampaVimuHistory?.onWindow(it) }
+        }
+    }
 
     override fun onListenerConnected() {
         NotificationStore.connected(this)
         tizenTubeHistory?.stop()
         val log = LumbinaLog { tag, message -> Log.i(tag, message) }
         tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log).also { it.start() }
+        lampaVimuHistory?.stop()
+        lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass)).also { it.start() }
+        if (!lampaReceiverRegistered) {
+            ContextCompat.registerReceiver(
+                this, lampaWindowReceiver, IntentFilter(LampaWatchNext.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            lampaReceiverRegistered = true
+        }
         val all = runCatching { activeNotifications }.getOrNull().orEmpty().filter { isVisible(it) }
         NotificationStore.replace(all, packageName, packageManager::labelOf)
     }
@@ -39,6 +60,10 @@ class LumbinaNotificationListener : NotificationListenerService() {
     override fun onListenerDisconnected() {
         tizenTubeHistory?.stop()
         tizenTubeHistory = null
+        lampaVimuHistory?.stop()
+        lampaVimuHistory = null
+        if (lampaReceiverRegistered) unregisterReceiver(lampaWindowReceiver)
+        lampaReceiverRegistered = false
         NotificationStore.connected(null)
     }
 

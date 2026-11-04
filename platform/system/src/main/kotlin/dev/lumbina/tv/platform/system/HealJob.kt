@@ -15,6 +15,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.HealResult
+import dev.lumbina.tv.core.domain.locale.ViddaSystemLanguage
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,8 @@ class HealJob : JobService() {
 
     @Inject lateinit var log: LumbinaLog
 
+    @Inject lateinit var systemLanguage: ViddaSystemLanguage
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val running = ConcurrentHashMap<Int, Job>()
 
@@ -55,6 +58,8 @@ class HealJob : JobService() {
             if (result.getOrNull() == HealResult.Reenabled && attempt < MAX_ATTEMPTS) {
                 scheduleCheck(this@HealJob, attempt + 1)
             }
+            runCatching { systemLanguage.restore() }.onFailure { log.log(TAG, "locale restore: $it") }
+            ensureActive()
             running.remove(params.jobId)
             jobFinished(params, false)
         }

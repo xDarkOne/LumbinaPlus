@@ -2,6 +2,7 @@ package dev.lumbina.tv.core.domain.access
 
 import dev.lumbina.tv.core.domain.health.AccessibilityServiceList
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
+import dev.lumbina.tv.core.domain.locale.ViddaLanguage
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
 import java.io.InputStream
@@ -82,6 +83,7 @@ data class AccessSettings(
     val micApps: Map<String, Boolean> = emptyMap(),
     /** The setup was asked back after it was over: it opens at its steps, with nobody to welcome. */
     val setupReopened: Boolean = false,
+    val systemLanguage: ViddaLanguage? = null,
 )
 
 typealias AccessSettingsRepository = SettingsRepository<AccessSettings>

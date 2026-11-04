@@ -11,6 +11,7 @@ import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.speech.AudioSource
 import dev.lumbina.tv.core.domain.speech.SpeechSetups
+import dev.lumbina.tv.core.domain.speech.SpeechProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -74,8 +75,11 @@ internal class RemoteVoice(
         scope.launch {
             combine(setups.setups(namesStale), models) { setup, _ -> setup }
                 .collectLatest { setup ->
-                    val nowReady = readiness.prepare(setup)
+                    val offlineReady = readiness.prepare(setup)
+                    val useVidda = setup.provider == SpeechProvider.Vidda && assembly.vidda.available()
+                    val nowReady = offlineReady || useVidda
                     if (nowReady && controller == null) build(scope, audio)
+                    controller?.useVidda = useVidda
                     if (nowReady != ready) {
                         ready = nowReady
                         onAvailable(nowReady)
@@ -91,7 +95,7 @@ internal class RemoteVoice(
     }
 
     fun release() {
-        controller?.stop()
+        controller?.releaseKey()
     }
 
     /** A notice of voice input's that OK acts on has the OK while it shows; true if taken. */

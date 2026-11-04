@@ -33,6 +33,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private val scope = MainScope()
     private var remoteSettingsJob: Job? = null
     private var features: RemoteFeatures? = null
+    private val lampaWindowWatcher by lazy { LampaWindowWatcher(this) }
     private var translator: Translator? = null
     private var translatorExtraEvents = 0
     private var translatorEventsEnabled = false
@@ -82,6 +83,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         features?.onAccessibilityEvent(event)
+        lampaWindowWatcher.onEvent(event)
         translator?.onEvent(event)
     }
 

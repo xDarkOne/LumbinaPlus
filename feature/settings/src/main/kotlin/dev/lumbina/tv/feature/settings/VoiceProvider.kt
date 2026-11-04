@@ -22,6 +22,8 @@ internal fun LazyListScope.providerRows(recognizer: Recognizer, onClick: () -> U
     when (recognizer.provider) {
         SpeechProvider.Device -> Unit
 
+        SpeechProvider.Vidda -> item { Note(stringResource(R.string.voice_provider_vidda_hint)) }
+
         SpeechProvider.App -> item {
             val app = recognizer.app
             Note(
@@ -46,10 +48,17 @@ internal fun ProviderDialog(
 ) {
     val noKey = stringResource(R.string.voice_provider_no_key)
     // Another app is offered only where there is one that can be given the remote's sound.
-    val offered = SpeechProvider.entries.filter { it != SpeechProvider.App || recognizer.app != null }
+    val offered = SpeechProvider.entries.filter {
+        when (it) {
+            SpeechProvider.App -> recognizer.app != null
+            SpeechProvider.Vidda -> recognizer.viddaSupported
+            else -> true
+        }
+    }
     val choices = offered.map { provider ->
         val subtitle = when (provider) {
             SpeechProvider.Device -> stringResource(R.string.voice_provider_device_hint)
+            SpeechProvider.Vidda -> stringResource(R.string.voice_provider_vidda_hint)
             SpeechProvider.App -> recognizer.app?.label.orEmpty()
             in recognizer.withKey -> stringResource(R.string.voice_provider_key_set)
             else -> noKey
@@ -69,6 +78,7 @@ internal fun ProviderDialog(
 private fun providerName(provider: SpeechProvider): String = stringResource(
     when (provider) {
         SpeechProvider.Device -> R.string.voice_provider_device
+        SpeechProvider.Vidda -> R.string.voice_provider_vidda
         SpeechProvider.OpenAi -> R.string.voice_provider_openai
         SpeechProvider.Yandex -> R.string.voice_provider_yandex
         SpeechProvider.App -> R.string.voice_provider_app

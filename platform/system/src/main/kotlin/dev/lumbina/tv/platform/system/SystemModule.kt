@@ -20,6 +20,7 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.HealLock
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.locale.AppLanguage
+import dev.lumbina.tv.core.domain.locale.ViddaSystemLanguage
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.remote.HomeScreens
 import dev.lumbina.tv.core.domain.remote.KeyCapture
@@ -93,4 +94,6 @@ internal interface SystemModule {
     @Binds fun mediaSessions(impl: AndroidMediaSessions): MediaSessions
 
     @Binds fun appLanguage(impl: AndroidAppLanguage): AppLanguage
+
+    @Binds fun viddaSystemLanguage(impl: AndroidViddaSystemLanguage): ViddaSystemLanguage
 }

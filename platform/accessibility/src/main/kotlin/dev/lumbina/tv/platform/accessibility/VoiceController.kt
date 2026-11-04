@@ -18,6 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,8 +38,13 @@ internal class VoiceController(
     private val overlay: VoiceOverlay,
     private val strings: Strings,
     private val log: LumbinaLog,
+    private val vidda: ViddaRecognizer,
+    private val releaseAudio: () -> Unit,
 ) {
     private val answers = VoiceAnswers(scope, overlay, strings, log)
+
+    var useVidda: Boolean = false
+    private var viddaListening = false
 
     /** The same recognition, with the capture's drain suited to each way of ending. */
     class Sessions(val pushToTalk: RunVoiceSession, val handsFree: RunVoiceSession)
@@ -102,6 +108,7 @@ internal class VoiceController(
     /** Listens until [stop], and with an [endpoint] at most until it hears the speech end. */
     fun start(endpoint: EndOfSpeech? = null) {
         if (job?.isActive == true) {
+            if (viddaListening) return stop()
             latestPressStartedSession = false // still finishing the previous utterance; leave it alone
             // Said, or the press would seem lost; then back to what the plate was saying.
             if (!cancelled) {
@@ -118,6 +125,10 @@ internal class VoiceController(
         working = false
         cancelled = false
         overlay.show(strings.listening, Mark.Listening)
+        if (useVidda && vidda.available()) {
+            startVidda()
+            return
+        }
         val events = if (endpoint == null) {
             sessions.pushToTalk { held }
         } else {
@@ -136,6 +147,8 @@ internal class VoiceController(
             } catch (e: IOException) {
                 // The mic source unreachable or closed, or the recognizer failed: which one is not known here.
                 fail(e, strings.failed, null)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: IllegalStateException) {
                 fail(e, strings.notStarted, Place.Voice) // speech engine not ready
             } finally {
@@ -145,8 +158,43 @@ internal class VoiceController(
         }
     }
 
+    private fun startVidda() {
+        releaseAudio()
+        viddaListening = true
+        job = scope.launch {
+            try {
+                val text = vidda.listen { partial ->
+                    if (!cancelled && !working) overlay.show(strings.heard(partial), Mark.Listening)
+                }
+                if (!cancelled) {
+                    if (text == null) {
+                        answers.notice(strings.notHeard)
+                    } else {
+                        overlay.flash(strings.heard(text), VoiceAnswers.toRead(text), Mark.Done)
+                        answers.report(handle(text))
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                fail(e, strings.notStarted, Place.Voice)
+            } catch (e: IllegalStateException) {
+                fail(e, strings.notStarted, Place.Voice)
+            } catch (e: SecurityException) {
+                fail(e, strings.notStarted, Place.Voice)
+            } finally {
+                viddaListening = false
+                held = false
+                working = false
+            }
+        }
+    }
+
+    fun releaseKey() {
+        if (!viddaListening) stop()
+    }
+
     fun stop() {
         held = false
+        if (viddaListening) vidda.stop()
         if (job?.isActive == true && !cancelled && !working) {
             working = true
             overlay.show(strings.recognizing, Mark.Working)
@@ -158,6 +206,7 @@ internal class VoiceController(
 
     /** The press was a tap, not speech: drop its result quietly. */
     fun cancel() {
+        if (viddaListening) return
         held = false
         if (latestPressStartedSession) {
             cancelled = true

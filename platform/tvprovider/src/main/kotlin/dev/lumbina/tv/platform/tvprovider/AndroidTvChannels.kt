@@ -1,6 +1,8 @@
 package dev.lumbina.tv.platform.tvprovider
 
+import android.app.SearchManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
@@ -17,6 +19,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import dev.lumbina.tv.core.common.LampaWatchNext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.common.TizenTubeWatchNext as LocalCard
 import dev.lumbina.tv.core.domain.access.CompanionApp
@@ -125,7 +128,34 @@ internal class AndroidTvChannels @Inject constructor(
             }.also { note("next", "${provider()}: ${it.size} to continue watching") }
         },
         localTizenTubeCard(),
-    ) { providerCards, local -> mergeTizenTubeCard(providerCards, local) }
+        localLampaCard(),
+    ) { providerCards, tizenTube, lampa -> mergeLocalCards(providerCards, tizenTube, lampa) }
+
+    private fun localLampaCard(): Flow<Pair<ProgramCard, Long>?> = callbackFlow {
+        val prefs = context.getSharedPreferences(LampaWatchNext.PREFERENCES, Context.MODE_PRIVATE)
+        fun readCard(): Pair<ProgramCard, Long>? {
+            val title = prefs.getString(LampaWatchNext.TITLE, null)?.takeIf { it.isNotBlank() } ?: return null
+            val position = prefs.getLong(LampaWatchNext.POSITION, 0)
+            val duration = prefs.getLong(LampaWatchNext.DURATION, 0)
+            val intent = Intent(Intent.ACTION_SEARCH)
+                .setComponent(ComponentName(LampaWatchNext.LAMPA, "${LampaWatchNext.LAMPA}.MainActivity"))
+                .putExtra(SearchManager.QUERY, title).toUri(Intent.URI_INTENT_SCHEME)
+            return ProgramCard(
+                id = LampaWatchNext.CARD_ID,
+                packageName = LampaWatchNext.LAMPA,
+                title = title,
+                subtitle = null,
+                artUri = null,
+                shape = null,
+                intentUri = intent,
+                progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
+            ) to prefs.getLong(LampaWatchNext.UPDATED, 0)
+        }
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(readCard()) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(readCard())
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     private fun localTizenTubeCard(): Flow<Pair<ProgramCard, Long>?> = callbackFlow {
         val prefs = context.getSharedPreferences(LocalCard.PREFERENCES, Context.MODE_PRIVATE)
@@ -306,4 +336,22 @@ internal fun mergeTizenTubeCard(
     }
     val cards = if (local != null && !alreadyPublished) providerCards + local else providerCards
     return cards.sortedByDescending { it.second ?: 0L }.map { it.first }
+}
+
+/** Keep the publisher's LAMPA card in preference to a local Vimu fallback for the same film. */
+internal fun mergeLocalCards(
+    providerCards: List<Pair<ProgramCard, Long?>>,
+    tizenTube: Pair<ProgramCard, Long>?,
+    lampa: Pair<ProgramCard, Long>?,
+): List<ProgramCard> {
+    val tizenCards = mergeTizenTubeCard(providerCards, tizenTube)
+    val lampaPublished = lampa != null && tizenCards.any { card ->
+        card.packageName in setOf(LampaWatchNext.LAMPA, "dev.xdark.voicekey") &&
+            card.title.trim().equals(lampa.first.title.trim(), ignoreCase = true)
+    }
+    if (lampa == null || lampaPublished) return tizenCards
+    val timestamps = providerCards.associate { it.first to (it.second ?: 0L) }.toMutableMap()
+    tizenTube?.let { timestamps[it.first] = it.second }
+    timestamps[lampa.first] = lampa.second
+    return (tizenCards + lampa.first).sortedByDescending { timestamps[it] ?: 0L }
 }

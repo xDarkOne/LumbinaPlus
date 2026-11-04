@@ -6,11 +6,14 @@ LumbinaPlus is a fork of [Lumbina by Kasavy](https://github.com/Kasavy/lumbina) 
 
 - “Continue watching” keeps the last partly watched TizenTube video on the device, using media
   session metadata when notification access is enabled. A matching card published to the TV
-  provider takes priority.
+  provider takes priority. When LAMPA opens Vimu, leaving the player without returning to LAMPA
+  can also add a local card. It opens a title search in LAMPA.
 - Voice commands can target the configured YouTube app, VK Video or LAMPA. For example,
-  “найди на ютубе трейлер Дюны” and “найди в лампе Дюну”.
+  “найди на ютубе трейлер Дюны” and “найди в лампе Дюну”. VIDAA online recognition uses
+  the installed Vidda Google voice service, with the Vosk option still available.
 - The remote settings include an optional Russian overlay for VIDAA system menus. It runs
   in the launcher's accessibility service and is off by default.
+- The Access page can set and remember the VIDAA system language on supported projectors.
 
 ## About the original launcher
 

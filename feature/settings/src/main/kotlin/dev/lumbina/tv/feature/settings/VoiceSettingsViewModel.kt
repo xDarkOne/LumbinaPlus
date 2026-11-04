@@ -3,6 +3,7 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.speech.ModelState
@@ -31,6 +32,7 @@ class VoiceSettingsViewModel @Inject constructor(
     private val speechApps: SpeechApps,
     installedApps: InstalledApps,
     profile: DeviceProfile,
+    private val access: LocalAccess,
 ) : ViewModel() {
 
     /** Voice input only works on devices whose remote mic Lumbina can read. */
@@ -51,12 +53,15 @@ class VoiceSettingsViewModel @Inject constructor(
     val recognizer: StateFlow<Recognizer?> =
         // Asked again when apps change: the one that recognizes may be installed or removed meanwhile.
         combine(voiceSettings.settings, speechKeys.providers, installedApps.observe()) { settings, withKey, _ ->
-            Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull())
+            Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull(), profile.id == "hisense-vidaa")
         }
             .stateIn(viewModelScope, WhileUiSubscribed, null)
 
     fun chooseProvider(provider: SpeechProvider) {
-        viewModelScope.launch { voiceSettings.update { it.copy(provider = provider) } }
+        viewModelScope.launch {
+            if (provider == SpeechProvider.Vidda) access.grantRecordAudio()
+            voiceSettings.update { it.copy(provider = provider) }
+        }
     }
 
     fun toggleCommands() {
@@ -84,10 +89,11 @@ data class Recognizer(
     val withKey: Set<SpeechProvider> = emptySet(),
     /** Another app that can recognize here; null where there is none to offer. */
     val app: SpeechApp? = null,
+    val viddaSupported: Boolean = false,
 ) {
     /** A cloud service is chosen, but its key isn't set. */
     val missingKey: Boolean get() = provider.isCloud && provider !in withKey
 
     /** Another app recognizes: Lumbina's own languages and their mode have no say. */
-    val byApp: Boolean get() = provider == SpeechProvider.App && app != null
+    val byApp: Boolean get() = provider == SpeechProvider.Vidda || (provider == SpeechProvider.App && app != null)
 }

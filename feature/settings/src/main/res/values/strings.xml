@@ -513,4 +513,15 @@
     <string name="buttons_voicekey_settings">VoiceKey settings</string>
     <string name="buttons_translator">Translate system screens</string>
     <string name="buttons_translator_hint">Translate supported VIDAA menus into Russian. Requires remote button interception.</string>
+    <string name="voice_provider_vidda">Vidda Google voice service</string>
+    <string name="voice_provider_vidda_hint">Requires the Vidda voice service and microphone permission. Offline recognition is used if the service is unavailable.</string>
+    <string name="access_system_language">VIDAA system language</string>
+    <string name="access_system_language_active">Active system language: %1$s</string>
+    <string name="access_system_language_applying">Applying…</string>
+    <string name="access_system_language_saved">Saved: %1$s. Restart the projector to apply.</string>
+    <string name="access_system_language_failed">The firmware did not confirm the change.</string>
+    <string name="access_system_language_forgotten">Automatic restore disabled.</string>
+    <string name="access_system_language_forget">Stop restoring the saved language</string>
+    <string name="access_system_language_hint">This changes the projector language and restores your choice if the firmware resets it.</string>
+    <string name="access_system_language_adb">Connect to the projector’s debugging to change its language.</string>
 </resources>

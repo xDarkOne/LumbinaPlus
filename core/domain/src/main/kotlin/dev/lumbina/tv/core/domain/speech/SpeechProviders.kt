@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
  */
 enum class SpeechProvider {
     Device,
+    Vidda,
     OpenAi,
     Yandex,
     App,
