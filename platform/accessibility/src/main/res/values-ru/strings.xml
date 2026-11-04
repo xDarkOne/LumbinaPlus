@@ -2,7 +2,6 @@
 <resources>
     <string name="lumbina_accessibility_description">Кнопка «Домой» на пульте открывает Lumbina (удержание открывает быстрое меню), кнопка микрофона включает голосовой ввод.</string>
     <string name="voice_vidda_connecting">Подключаю голос VIDAA…</string>
-    <string name="voice_vidda_repeat">Слушаю снова. Повторите фразу…</string>
     <string name="voice_listening">Слушаю…</string>
     <string name="voice_recognizing">Распознаю…</string>
     <string name="voice_still_recognizing">Ещё распознаю…</string>
@@ -106,4 +105,7 @@
     <string name="voice_cant_close">Чтобы закрывать приложения, нужно подключение к отладке</string>
     <string name="voice_no_timer">Таймер сна не включён</string>
     <string name="voice_one_language">Голос понимает только %1$s. Другие языки добавляются в разделе «Голосовой ввод»</string>
+    <string name="voice_vidda_not_ready">Голосовой модуль VIDAA ещё запускается. Попробуйте ещё раз.</string>
+    <string name="voice_vidda_not_heard">Не расслышал фразу. Попробуйте ещё раз.</string>
+    <string name="voice_video_search_starting">Поиск Кинопоиска ещё запускается. Повторите команду.</string>
 </resources>

@@ -3,7 +3,6 @@
     <string name="lumbina_accessibility_label" translatable="false">Lumbina</string>
     <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (holding it opens the quick menu) and turns the mic button into voice input.</string>
     <string name="voice_vidda_connecting">Connecting to VIDAA voice…</string>
-    <string name="voice_vidda_repeat">Listening again. Please repeat…</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_recognizing">Recognizing…</string>
     <string name="voice_still_recognizing">Still recognizing…</string>
@@ -101,4 +100,7 @@
     <string name="voice_cant_close">Closing apps takes the connection to debugging</string>
     <string name="voice_no_timer">No sleep timer is running</string>
     <string name="voice_one_language">Voice understands only %1$s. Other languages are added under “Voice input”</string>
+    <string name="voice_vidda_not_ready">VIDAA voice is still starting. Please try again.</string>
+    <string name="voice_vidda_not_heard">Couldn’t hear the phrase. Please try again.</string>
+    <string name="voice_video_search_starting">Kinopoisk search is still starting. Please repeat the command.</string>
 </resources>

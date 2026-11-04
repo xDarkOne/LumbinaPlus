@@ -79,6 +79,7 @@ private fun VoiceController.Strings.feedback(outcome: UtteranceOutcome): String?
     is UtteranceOutcome.Typed, is UtteranceOutcome.Done, is UtteranceOutcome.Ambiguous -> null
     is UtteranceOutcome.NotDelivered -> noField(outcome.text)
     UtteranceOutcome.SearchFailed -> searchFailed
+    UtteranceOutcome.VideoSearchStarting -> videoSearchStarting
     is UtteranceOutcome.Opened -> opened(outcome.app)
     is UtteranceOutcome.Closed -> closed(outcome.app)
     is UtteranceOutcome.AppNotFound -> appNotFound(outcome.query)

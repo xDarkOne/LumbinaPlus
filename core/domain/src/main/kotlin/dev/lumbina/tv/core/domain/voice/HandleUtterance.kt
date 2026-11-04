@@ -39,6 +39,8 @@ sealed interface UtteranceOutcome {
     /** Said on a launcher, where it is searched for, and the search did not open. */
     data object SearchFailed : UtteranceOutcome
 
+    data object VideoSearchStarting : UtteranceOutcome
+
     data class Opened(val app: String) : UtteranceOutcome
 
     data class AppNotFound(val query: String) : UtteranceOutcome
@@ -72,6 +74,8 @@ sealed interface UtteranceOutcome {
     data class Failed(val command: VoiceCommand) : UtteranceOutcome
 }
 
+enum class VideoSearchResult { Opened, Starting, Failed }
+
 /**
  * Turns recognized speech into an action: a command when it is one (and commands are on),
  * otherwise text for the focused field, the app's keyboard or a search ([deliver]).
@@ -87,7 +91,7 @@ class HandleUtterance(
     private val now: () -> Long,
     private val commandsEnabled: suspend () -> Boolean = { true },
     private val matcher: AppMatcher = AppMatcher(),
-    private val searchInApp: suspend (VideoSearchTarget, String) -> Boolean = { _, _ -> false },
+    private val searchInApp: suspend (VideoSearchTarget, String) -> VideoSearchResult = { _, _ -> VideoSearchResult.Failed },
 ) {
     suspend operator fun invoke(text: String): UtteranceOutcome {
         val command = if (commandsEnabled()) VoiceCommandParser.parse(text) else null
@@ -149,7 +153,11 @@ class HandleUtterance(
     private suspend fun find(command: VoiceCommand.Search): UtteranceOutcome {
         val (query, target) = command
         if (target != null) {
-            return if (searchInApp(target, query)) UtteranceOutcome.Searched(query) else UtteranceOutcome.SearchFailed
+            return when (searchInApp(target, query)) {
+                VideoSearchResult.Opened -> UtteranceOutcome.Searched(query)
+                VideoSearchResult.Starting -> UtteranceOutcome.VideoSearchStarting
+                VideoSearchResult.Failed -> UtteranceOutcome.SearchFailed
+            }
         }
         deliver(query)?.let { return UtteranceOutcome.Typed(it) }
         return if (search.search(query)) UtteranceOutcome.Searched(query) else UtteranceOutcome.NotDelivered(query)

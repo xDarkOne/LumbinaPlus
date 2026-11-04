@@ -32,11 +32,11 @@ import dev.lumbina.tv.core.domain.text.withYouTube
 import dev.lumbina.tv.core.domain.voice.AppMatcher
 import dev.lumbina.tv.core.domain.voice.DeviceControls
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
+import dev.lumbina.tv.core.domain.voice.VideoSearchResult
 import dev.lumbina.tv.core.domain.voice.VideoSearchTarget
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
@@ -82,39 +82,39 @@ internal class VoiceAssembly(
         searchInApp = ::searchInApp,
     )
 
-    private suspend fun searchInApp(target: VideoSearchTarget, query: String): Boolean = when (target) {
-        VideoSearchTarget.YouTube -> searches.youTube.search(query)
-        VideoSearchTarget.VkVideo -> startSearch(
-            Intent(Intent.ACTION_VIEW, Uri.parse("vkvideo://video/search?query=" + Uri.encode(query)))
-                .setPackage("com.vk.tv"),
-        )
+    private suspend fun searchInApp(target: VideoSearchTarget, query: String): VideoSearchResult {
+        val opened = when (target) {
+            VideoSearchTarget.YouTube -> searches.youTube.search(query)
+            VideoSearchTarget.VkVideo -> startSearch(
+                Intent(Intent.ACTION_VIEW, Uri.parse("vkvideo://video/search?query=" + Uri.encode(query)))
+                    .setPackage("com.vk.tv"),
+            )
 
-        VideoSearchTarget.Kinopoisk -> {
-            val title = try {
-                try {
+            VideoSearchTarget.Kinopoisk -> {
+                val title = try {
                     kinopoiskTitle(query)
-                } catch (e: IllegalArgumentException) {
-                    if (e.message?.contains("applicationComponent is not initialized") != true) throw e
-                    log.log("vidda-voice", "Kinopoisk starting; retrying search")
-                    delay(750)
-                    kinopoiskTitle(query)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: RuntimeException) {
+                    log.log("voice", "Kinopoisk search unavailable: $e")
+                    if (e is IllegalArgumentException && e.message?.contains("applicationComponent is not initialized") == true) {
+                        return VideoSearchResult.Starting
+                    }
+                    null
                 }
-            } catch (e: RuntimeException) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                log.log("voice", "Kinopoisk search unavailable: $e")
-                null
+                val found = title?.let(::startSearch) == true
+                log.log("vidda-voice", "Kinopoisk match=${title != null} opened=$found")
+                found
             }
-            val opened = title?.let(::startSearch) == true
-            log.log("vidda-voice", "Kinopoisk match=${title != null} opened=$opened")
-            opened
-        }
 
-        VideoSearchTarget.Lampa -> startSearch(
-            Intent(Intent.ACTION_SEARCH)
-                .setComponent(ComponentName("top.rootu.lampa", "top.rootu.lampa.MainActivity"))
-                .putExtra(SearchManager.QUERY, query)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-        )
+            VideoSearchTarget.Lampa -> startSearch(
+                Intent(Intent.ACTION_SEARCH)
+                    .setComponent(ComponentName("top.rootu.lampa", "top.rootu.lampa.MainActivity"))
+                    .putExtra(SearchManager.QUERY, query)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        }
+        return if (opened) VideoSearchResult.Opened else VideoSearchResult.Failed
     }
 
     private suspend fun kinopoiskTitle(query: String): Intent? = withContext(Dispatchers.IO) {
@@ -218,7 +218,9 @@ internal class VoiceAssembly(
     private fun strings() = VoiceController.Strings(
         listening = service.getString(R.string.voice_listening),
         viddaConnecting = service.getString(R.string.voice_vidda_connecting),
-        viddaRepeat = service.getString(R.string.voice_vidda_repeat),
+        viddaNotReady = service.getString(R.string.voice_vidda_not_ready),
+        viddaNotHeard = service.getString(R.string.voice_vidda_not_heard),
+        videoSearchStarting = service.getString(R.string.voice_video_search_starting),
         recognizing = service.getString(R.string.voice_recognizing),
         stillRecognizing = service.getString(R.string.voice_still_recognizing),
         notStarted = service.getString(R.string.voice_not_started),

@@ -46,7 +46,6 @@ internal class VoiceController(
 
     var useVidda: Boolean = false
     private var viddaListening = false
-    private var viddaFirstSession = true
 
     /** The same recognition, with the capture's drain suited to each way of ending. */
     class Sessions(val pushToTalk: RunVoiceSession, val handsFree: RunVoiceSession)
@@ -55,7 +54,9 @@ internal class VoiceController(
     class Strings(
         val listening: String,
         val viddaConnecting: String = listening,
-        val viddaRepeat: String = listening,
+        val viddaNotReady: String = "",
+        val viddaNotHeard: String = "",
+        val videoSearchStarting: String = "",
         /** The button is let go and the phrase is being worked out. */
         val recognizing: String = "",
         /** The button was pressed again before that was done. */
@@ -169,37 +170,26 @@ internal class VoiceController(
         job = scope.launch {
             var ready = false
             try {
-                val firstSession = viddaFirstSession
-                viddaFirstSession = false
-                suspend fun listen(repeat: Boolean) = vidda.listen(
+                val readings = vidda.listen(
                     onReady = {
                         ready = true
-                        if (!cancelled && !working) {
-                            overlay.show(if (repeat) strings.viddaRepeat else strings.listening, Mark.Listening)
-                        }
+                        if (!cancelled && !working) overlay.show(strings.listening, Mark.Listening)
                     },
                     onPartial = { partial ->
                         if (!cancelled && !working) overlay.show(strings.heard(partial), Mark.Listening)
                     },
                 )
-                var result = listen(repeat = false)
-                if (firstSession && result.noMatch && !cancelled && !working) {
-                    ready = false
-                    overlay.show(strings.viddaConnecting, Mark.Working)
-                    result = listen(repeat = true)
-                }
                 if (!cancelled) {
-                    val text = VoiceCommandParser.chooseReading(result.readings)
+                    val text = VoiceCommandParser.chooseReading(readings)
                     if (text == null) {
-                        if (ready) answers.notice(strings.notHeard)
-                        else answers.notice(strings.notStarted, Place.Voice)
+                        answers.notice(if (ready) strings.viddaNotHeard else strings.viddaNotReady)
                     } else {
                         overlay.flash(strings.heard(text), VoiceAnswers.toRead(text), Mark.Done)
                         answers.report(handle(text))
                     }
                 }
             } catch (e: TimeoutCancellationException) {
-                fail(e, strings.notStarted, Place.Voice)
+                fail(e, strings.viddaNotReady, Place.Voice)
             } catch (e: IllegalStateException) {
                 fail(e, strings.notStarted, Place.Voice)
             } catch (e: SecurityException) {

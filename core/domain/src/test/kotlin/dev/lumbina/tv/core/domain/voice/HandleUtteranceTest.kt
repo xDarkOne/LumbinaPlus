@@ -51,7 +51,7 @@ class HandleUtteranceTest {
 
     private fun handler(
         commands: Boolean = true,
-        searchInApp: suspend (VideoSearchTarget, String) -> Boolean = { _, _ -> false },
+        searchInApp: suspend (VideoSearchTarget, String) -> VideoSearchResult = { _, _ -> VideoSearchResult.Failed },
     ) = HandleUtterance(
         apps = { installed },
         launcher = { launches && launched.add(it) },
@@ -68,12 +68,21 @@ class HandleUtteranceTest {
     fun `a named video search goes to the requested app even with a focused field`() = runTest {
         fieldOnScreen = true
         val routed = mutableListOf<Pair<VideoSearchTarget, String>>()
-        val handler = handler(searchInApp = { target, query -> routed.add(target to query) })
+        val handler = handler(searchInApp = { target, query ->
+            routed.add(target to query)
+            VideoSearchResult.Opened
+        })
 
         assertEquals(UtteranceOutcome.Searched("дюну"), handler("найди в лампе дюну"))
         assertEquals(listOf(VideoSearchTarget.Lampa to "дюну"), routed)
         assertEquals(emptyList<String>(), typed)
         assertEquals(emptyList<String>(), searched)
+    }
+
+    @Test
+    fun `a search provider that is starting asks for a retry`() = runTest {
+        val handler = handler(searchInApp = { _, _ -> VideoSearchResult.Starting })
+        assertEquals(UtteranceOutcome.VideoSearchStarting, handler("найди в кинопоиске дюну"))
     }
 
     @Test
