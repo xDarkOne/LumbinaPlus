@@ -14,6 +14,7 @@ import dev.lumbina.tv.core.domain.voice.HandleUtterance
 import dev.lumbina.tv.platform.accessibility.VoiceOverlay.Mark
 import java.io.IOException
 import java.util.Locale
+import dev.lumbina.tv.core.domain.voice.VoiceCommandParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -166,7 +167,7 @@ internal class VoiceController(
         job = scope.launch {
             var ready = false
             try {
-                val text = vidda.listen(
+                val readings = vidda.listen(
                     onReady = {
                         ready = true
                         if (!cancelled && !working) overlay.show(strings.listening, Mark.Listening)
@@ -176,6 +177,7 @@ internal class VoiceController(
                     },
                 )
                 if (!cancelled) {
+                    val text = VoiceCommandParser.chooseReading(readings)
                     if (text == null) {
                         if (ready) answers.notice(strings.notHeard)
                         else answers.notice(strings.notStarted, Place.Voice)

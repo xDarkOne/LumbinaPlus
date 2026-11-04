@@ -2,6 +2,7 @@ package dev.lumbina.tv.platform.system
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,7 +19,7 @@ import javax.inject.Singleton
 
 /**
  * Logs to logcat and to `Android/data/<pkg>/files/logs/lumbina.log` (readable over adb without
- * root), for firmware with logcat disabled. Keeps one rotated file. Writes on a thread of its
+ * root where supported), or internal storage for debug builds with adb run-as. Keeps one rotated file. Writes on a thread of its
  * own, so callers (e.g. the remote's key handling) never wait for the disk; every process
  * appends under a file lock.
  */
@@ -27,7 +28,12 @@ internal class FileLumbinaLog @Inject constructor(@ApplicationContext private va
     LumbinaLog,
     LogArchive {
 
-    private val file: File? by lazy { context.getExternalFilesDir("logs")?.let { File(it, "lumbina.log") } }
+    private val file: File? by lazy {
+        val debug = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (debug) File(context.filesDir, "lumbina.log") else context.getExternalFilesDir("logs")?.let {
+            File(it, "lumbina.log")
+        }
+    }
     private val process: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         // "dev.lumbina.tv:ui" is "ui"; a prefix the build put before it (processNames in build-logic)
         // is dropped as far as it ends with a dot.

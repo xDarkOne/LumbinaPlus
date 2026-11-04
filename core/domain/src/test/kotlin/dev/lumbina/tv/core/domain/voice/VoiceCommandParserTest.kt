@@ -132,6 +132,13 @@ class VoiceCommandParserTest {
     )
 
     @Test
+    fun `online alternatives retain an explicit app when the first reading missed it`() {
+        val title = "найди на кинопоиске любовь и голуби"
+        assertEquals(title, VoiceCommandParser.chooseReading(listOf("найди любовь и голуби", title)))
+        assertEquals("домой", VoiceCommandParser.chooseReading(listOf("домой", title)))
+    }
+
+    @Test
     fun `understands the corpus`() {
         val wrong = corpus.mapNotNull { (phrase, expected) ->
             val actual = VoiceCommandParser.parse(phrase)

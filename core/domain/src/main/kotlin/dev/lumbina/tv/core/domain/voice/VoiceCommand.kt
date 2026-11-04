@@ -33,6 +33,14 @@ enum class MediaAction { Play, Pause, PlayPause, Next, Previous }
  */
 object VoiceCommandParser {
 
+    /** Prefer a named video search when it is one of the online recognizer's alternatives. */
+    fun chooseReading(readings: List<String>): String? {
+        val first = readings.firstOrNull() ?: return null
+        val command = parse(first)
+        if (command != null && command !is VoiceCommand.Search) return first
+        return readings.firstOrNull { (parse(it) as? VoiceCommand.Search)?.target != null } ?: first
+    }
+
     fun parse(text: String): VoiceCommand? {
         val phrase = normalize(text)
         if (phrase.isEmpty()) return null

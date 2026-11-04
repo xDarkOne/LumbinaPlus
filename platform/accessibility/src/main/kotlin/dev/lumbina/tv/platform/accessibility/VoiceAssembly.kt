@@ -52,7 +52,7 @@ internal class VoiceAssembly(
     private val micServiceOff: () -> Boolean,
 ) {
     val sessions = VoiceSessions(engine)
-    val vidda = ViddaRecognizer(service)
+    val vidda = ViddaRecognizer(service, log)
 
     /** Where what was said is looked for: YouTube on a command to, the user's search for a phrase on a launcher. */
     class Searches(val youTube: YouTubeSearch, val chosen: Search)
@@ -88,7 +88,12 @@ internal class VoiceAssembly(
                 .setPackage("com.vk.tv"),
         )
 
-        VideoSearchTarget.Kinopoisk -> kinopoiskTitle(query)?.let(::startSearch) == true
+        VideoSearchTarget.Kinopoisk -> {
+            val title = kinopoiskTitle(query)
+            val opened = title?.let(::startSearch) == true
+            log.log("vidda-voice", "Kinopoisk match=${title != null} opened=$opened")
+            opened
+        }
 
         VideoSearchTarget.Lampa -> startSearch(
             Intent(Intent.ACTION_SEARCH)
