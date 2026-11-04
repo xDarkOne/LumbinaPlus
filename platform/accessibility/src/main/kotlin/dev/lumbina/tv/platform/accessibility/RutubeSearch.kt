@@ -55,7 +55,9 @@ internal class RutubeSearch(private val service: AccessibilityService, private v
             }
 
             // Clear any existing query. If the key is absent, entering text could silently append to it.
-            if (!press("Очистить")) return@withTimeoutOrNull false
+            // Clearing an already empty field may return false on TV builds even when the key exists.
+            if (key("Очистить") == null) return@withTimeoutOrNull false
+            press("Очистить")
             for (character in query.lowercase(Locale.forLanguageTag("ru"))) {
                 if (!typeCharacter(character)) return@withTimeoutOrNull false
             }
@@ -105,10 +107,9 @@ internal class RutubeSearch(private val service: AccessibilityService, private v
 
     private fun key(label: String): AccessibilityNodeInfo? {
         val keyboard = keyboard() ?: return null
-        fun matching(container: AccessibilityNodeInfo): AccessibilityNodeInfo? =
-            container.findAccessibilityNodeInfosByText(label).firstOrNull {
-                it.isClickable && it.text?.toString()?.equals(label, ignoreCase = true) == true
-            }
+        fun matching(container: AccessibilityNodeInfo): AccessibilityNodeInfo? = findNode(container) {
+            it.isVisibleToUser && it.isClickable && it.text?.toString()?.equals(label, ignoreCase = true) == true
+        }
         return matching(keyboard) ?: if (label == "Очистить" || label == "Найти") {
             root()?.let(::matching)
         } else {
@@ -146,8 +147,13 @@ internal class RutubeSearch(private val service: AccessibilityService, private v
         ?.findAccessibilityNodeInfosByViewId("$packageName:id/sidebar_container")
         ?.firstOrNull { it.childCount > 0 }
 
-    private fun keyboard(): AccessibilityNodeInfo? =
-        root()?.findAccessibilityNodeInfosByViewId("$packageName:id/fsKeyboard")?.firstOrNull()
+    private fun keyboard(): AccessibilityNodeInfo? {
+        val root = root() ?: return null
+        root.findAccessibilityNodeInfosByViewId("$packageName:id/fsKeyboard").firstOrNull()?.let { return it }
+        // Some TV builds expose Compose labels but omit the keyboard view ID.
+        val clear = findNode(root) { it.isVisibleToUser && it.isClickable && it.text?.toString() == "Очистить" }
+        return root.takeIf { clear != null }
+    }
 
     /** Stops waiting as soon as the user leaves RUTUBE after its window appeared. */
     private suspend fun waitFor(millis: Long, condition: () -> Boolean): Boolean {
@@ -176,4 +182,18 @@ internal class RutubeSearch(private val service: AccessibilityService, private v
         const val MAX_SIDEBAR_WIDTH = 199
         const val MAX_SIDEBAR_LEFT = 128
     }
+}
+
+private fun findNode(
+    root: AccessibilityNodeInfo,
+    matches: (AccessibilityNodeInfo) -> Boolean,
+): AccessibilityNodeInfo? {
+    val pending = ArrayDeque<AccessibilityNodeInfo>()
+    pending.add(root)
+    while (pending.isNotEmpty()) {
+        val node = pending.removeFirst()
+        if (matches(node)) return node
+        repeat(node.childCount) { node.getChild(it)?.let(pending::addLast) }
+    }
+    return null
 }
