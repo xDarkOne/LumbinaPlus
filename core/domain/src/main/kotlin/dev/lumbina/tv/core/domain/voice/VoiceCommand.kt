@@ -21,7 +21,7 @@ sealed interface VoiceCommand {
     data class Sleep(val minutes: Int?) : VoiceCommand
 }
 
-enum class VideoSearchTarget { YouTube, VkVideo, Lampa, Kinopoisk }
+enum class VideoSearchTarget { YouTube, VkVideo, Lampa, Kinopoisk, Rutube }
 
 enum class VolumeChange { Up, Down, Mute, Unmute, ToggleMute }
 
@@ -151,6 +151,8 @@ object VoiceCommandParser {
         r("(?:^| )(?:на|в|on|in) (?:вк видео|вк|vk video|vk)(?= |$)") to VideoSearchTarget.VkVideo,
         r("(?:^| )(?:на|в|on|in) (?:лампе|лампочке|lampa)(?= |$)") to VideoSearchTarget.Lampa,
         r("(?:^| )(?:на|в|on|in) (?:кинопоиске?|кино поиске?|kinopoisk)(?= |$)") to VideoSearchTarget.Kinopoisk,
+        r("(?:^| )(?:на|в|on|in) (?:рутуб(?:е)?|ру туб(?:е)?|rutube|футуб(?:а|е)?|futuba)(?= |$)") to
+            VideoSearchTarget.Rutube,
     )
     private val SEARCH = r("(найди|найти|поищи|ищи|поиск|search for|search|find|look for) (.+)")
     private val OPEN = r(

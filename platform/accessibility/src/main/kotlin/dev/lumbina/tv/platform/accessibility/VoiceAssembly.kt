@@ -90,6 +90,8 @@ internal class VoiceAssembly(
                     .setPackage("com.vk.tv"),
             )
 
+            VideoSearchTarget.Rutube -> FutubaSearch(service).search(query)
+
             VideoSearchTarget.Kinopoisk -> {
                 val title = try {
                     kinopoiskTitle(query)
