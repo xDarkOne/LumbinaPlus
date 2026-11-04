@@ -5,11 +5,21 @@ import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
 import dev.lumbina.tv.core.common.LampaWatchNext as Watch
+import dev.lumbina.tv.core.common.LumbinaLog
 
 /** Reports LAMPA → Vimu → another application, ignoring the system's transient overlays. */
-internal class LampaWindowWatcher(private val service: AccessibilityService) {
+internal class LampaWindowWatcher(private val service: AccessibilityService, private val log: LumbinaLog) {
     private var lastApp: String? = null
     private var fromLampa = false
+
+    fun beforeHome() {
+        val foreground = service.rootInActiveWindow?.packageName?.toString()
+        val active = service.windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
+            ?.root?.packageName?.toString()
+        val fromPlayer = foreground == Watch.VIMU || active == Watch.VIMU || lastApp == Watch.VIMU
+        log.log("lampa-history", "Home: root=$foreground active=$active last=$lastApp player=$fromPlayer")
+        if (fromPlayer) report(Watch.HOME_FROM_PLAYER)
+    }
 
     fun onEvent(event: AccessibilityEvent) {
         val app = when (event.eventType) {

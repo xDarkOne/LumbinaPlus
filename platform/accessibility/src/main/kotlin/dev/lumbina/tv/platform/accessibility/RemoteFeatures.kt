@@ -66,6 +66,7 @@ internal class RemoteFeatures(
         val debug: DebugCommands?,
         /** Where a held volume button stops repeating ([DeviceProfile.heldVolumeStops]). */
         val volumeHold: VolumeHold?,
+        val beforeHome: () -> Unit,
     )
 
     /**
@@ -224,7 +225,10 @@ internal class RemoteFeatures(
     private fun perform(action: RemoteAction) {
         if (action != RemoteAction.StopVoice && action != RemoteAction.CancelVoice) log.log(TAG, "action: $action")
         when (action) {
-            RemoteAction.OpenLumbina -> lumbinaHome.open(toStart = false)
+            RemoteAction.OpenLumbina -> {
+                parts.beforeHome()
+                lumbinaHome.open(toStart = false)
+            }
 
             RemoteAction.ShowQuickMenu -> {
                 parts.switching.hide()
@@ -306,7 +310,7 @@ internal class RemoteFeatures(
             )
         }
 
-        fun create(service: AccessibilityService, scope: CoroutineScope): RemoteFeatures {
+        fun create(service: AccessibilityService, scope: CoroutineScope, beforeHome: () -> Unit): RemoteFeatures {
             val profile = device.profile
             val log = device.log
             val own = setOfNotNull(service.packageName, profile.stockLauncher?.packageName)
@@ -353,6 +357,7 @@ internal class RemoteFeatures(
                 inLumbina = { service.rootInActiveWindow?.packageName == service.packageName },
                 debug = debug,
                 volumeHold = volumeHold,
+                beforeHome = beforeHome,
             )
             return RemoteFeatures(parts, profile, device.lumbinaHome, stores.remote, scope, log)
         }

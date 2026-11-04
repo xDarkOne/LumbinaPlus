@@ -14,8 +14,8 @@ import android.os.Build
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import androidx.core.content.ContextCompat
+import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LampaWatchNext
 import dev.lumbina.tv.core.common.LumbinaLog
@@ -32,7 +32,9 @@ import kotlinx.coroutines.flow.map
  * that screen: `adb shell cmd notification allow_listener` with this component).
  * Keeps them in [NotificationStore] for the home screen.
  */
+@AndroidEntryPoint
 class LumbinaNotificationListener : NotificationListenerService() {
+    @Inject lateinit var log: LumbinaLog
 
     private var tizenTubeHistory: TizenTubeHistory? = null
     private var lampaVimuHistory: LampaVimuHistory? = null
@@ -46,7 +48,6 @@ class LumbinaNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         NotificationStore.connected(this)
         tizenTubeHistory?.stop()
-        val log = LumbinaLog { tag, message -> Log.i(tag, message) }
         tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         lampaVimuHistory?.stop()
         lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass)).also { it.start() }

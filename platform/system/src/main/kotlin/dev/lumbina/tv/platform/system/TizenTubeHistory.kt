@@ -7,6 +7,7 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -114,7 +115,18 @@ internal class TizenTubeHistory(
     private fun read(metadata: MediaMetadata, nextTitle: String) {
         title = nextTitle
         artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
-        mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID)
+        mediaId = sequenceOf(
+            metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),
+            metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_URI),
+            metadata.getString(MediaMetadata.METADATA_KEY_ART_URI),
+            metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI),
+            metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
+            metadata.description.mediaUri?.toString(),
+            metadata.description.iconUri?.toString(),
+        ).filterNotNull().firstNotNullOfOrNull(::youtubeVideoId)
+        if (mediaId == null && nextTitle != artworkTitle) {
+            log.log(TAG, "no video ID in media metadata; keys=${metadata.keySet().sorted()}")
+        }
         duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
         val next = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
@@ -129,6 +141,25 @@ internal class TizenTubeHistory(
             artwork = next
             if (next != null) artworkTitle = nextTitle
         }
+    }
+
+    private fun youtubeVideoId(value: String): String? {
+        if (VIDEO_ID.matches(value)) return value
+        val uri = Uri.parse(value)
+        if (!uri.isHierarchical) return null
+        val path = uri.pathSegments
+        val candidate = when (uri.host?.lowercase()) {
+            "youtu.be" -> path.firstOrNull()
+            "youtube.com", "www.youtube.com", "m.youtube.com" ->
+                uri.getQueryParameter("v") ?: path.getOrNull(1)?.takeIf {
+                    path.firstOrNull() in setOf("shorts", "embed", "live")
+                }
+            "i.ytimg.com", "img.youtube.com" -> path.getOrNull(1)?.takeIf {
+                path.firstOrNull() in setOf("vi", "vi_webp")
+            }
+            else -> null
+        }
+        return candidate?.takeIf(VIDEO_ID::matches)
     }
 
     private fun readState(state: PlaybackState?) {
@@ -170,6 +201,7 @@ internal class TizenTubeHistory(
     }
 
     private companion object {
+        val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
         const val TAG = "tizentube-history"
         const val SAVE_INTERVAL = 60_000L
         const val MIN_DURATION = 60_000L

@@ -63,8 +63,19 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
             }
             Watch.RETURNED -> {
                 val name = title ?: latest?.title
-                if (name != null && prefs.getString(Watch.TITLE, null) == name) prefs.edit().clear().apply()
+                if (name != null && prefs.getString(Watch.TITLE, null) == cleanTitle(name)) prefs.edit().clear().apply()
                 finishVisit()
+            }
+            Watch.HOME_FROM_PLAYER -> {
+                val controller = activeSessions().filter { it.packageName == Watch.VIMU }
+                    .maxByOrNull { it.playbackState?.lastPositionUpdateTime ?: 0L }
+                val state = controller?.playbackState
+                val metadata = controller?.metadata
+                val rawTitle = metadata.title()
+                if (state != null && metadata != null && rawTitle?.startsWith(LAMPA_PREFIX, ignoreCase = true) == true) {
+                    val name = rawTitle.drop(LAMPA_PREFIX.length).trim()
+                    if (name.isNotEmpty()) store(Sample(name, position(state), metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)))
+                }
             }
             Watch.LEFT -> {
                 saveIfCurrent()
@@ -109,20 +120,27 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
         val name = metadata.title() ?: return
         if (name != title) return
         if (state.lastPositionUpdateTime < enteredAt - SESSION_GRACE) return
+        latest = Sample(name, position(state), metadata.getLong(MediaMetadata.METADATA_KEY_DURATION))
+    }
+
+    private fun position(state: PlaybackState): Long {
         val extra = if (state.state == PlaybackState.STATE_PLAYING && state.lastPositionUpdateTime > 0) {
             ((SystemClock.elapsedRealtime() - state.lastPositionUpdateTime).coerceAtLeast(0) * state.playbackSpeed)
                 .toLong()
         } else {
             0L
         }
-        val position = state.position + extra
-        latest = Sample(name, position, metadata.getLong(MediaMetadata.METADATA_KEY_DURATION))
+        return state.position + extra
     }
 
     private fun saveIfCurrent() {
         if (enteredAt == 0L) return
         rememberSample()
         val sample = latest?.takeIf { it.title == title } ?: return
+        store(sample.copy(title = cleanTitle(sample.title)))
+    }
+
+    private fun store(sample: Sample) {
         if (sample.duration > 0 && sample.position >= sample.duration * DONE_SHARE) {
             if (prefs.getString(Watch.TITLE, null) == sample.title) prefs.edit().clear().apply()
             return
@@ -136,9 +154,13 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
         (this?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: this?.description?.title?.toString())
             ?.trim()?.takeIf { it.isNotEmpty() }
 
+    private fun cleanTitle(title: String): String =
+        if (title.startsWith(LAMPA_PREFIX, ignoreCase = true)) title.drop(LAMPA_PREFIX.length).trim() else title
+
     private data class Sample(val title: String, val position: Long, val duration: Long)
 
     private companion object {
+        const val LAMPA_PREFIX = "[LAMPA]"
         const val DONE_SHARE = 0.95
         const val MIN_POSITION = 5_000L
         const val SESSION_GRACE = 10_000L

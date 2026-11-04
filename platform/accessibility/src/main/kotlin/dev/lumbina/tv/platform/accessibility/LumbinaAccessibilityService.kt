@@ -33,7 +33,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private val scope = MainScope()
     private var remoteSettingsJob: Job? = null
     private var features: RemoteFeatures? = null
-    private val lampaWindowWatcher by lazy { LampaWindowWatcher(this) }
+    private val lampaWindowWatcher by lazy { LampaWindowWatcher(this, log) }
     private var translator: Translator? = null
     private var translatorExtraEvents = 0
     private var translatorEventsEnabled = false
@@ -59,7 +59,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private fun startRemote() {
         // Keys let go for a held volume button stay so after the process ends, unless taken back here.
         filterKeys(true)
-        (features ?: featuresFactory.create(this, scope).also { features = it }).start()
+        (features ?: featuresFactory.create(this, scope, lampaWindowWatcher::beforeHome).also { features = it }).start()
     }
 
     private fun configureTranslator(enabled: Boolean) {

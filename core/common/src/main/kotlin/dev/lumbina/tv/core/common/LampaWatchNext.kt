@@ -9,6 +9,7 @@ object LampaWatchNext {
     const val ENTERED = "entered"
     const val RETURNED = "returned"
     const val LEFT = "left"
+    const val HOME_FROM_PLAYER = "home_from_player"
     const val PREFERENCES = "lampa_vimu_watch_next"
     const val TITLE = "title"
     const val POSITION = "position"
