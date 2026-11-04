@@ -4,16 +4,19 @@ import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.content.ContextCompat
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LampaWatchNext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.status.Notice
@@ -90,7 +93,7 @@ class LumbinaNotificationListener : NotificationListenerService() {
 
 /** Process-wide state shared by the listener (bound by the system) and [AndroidNotificationFeed]. */
 internal object NotificationStore {
-    private class Entry(val notice: Notice, val intent: PendingIntent?)
+    private class Entry(val notice: Notice, val intent: PendingIntent?, val physicalKeyboard: Boolean)
 
     private val entries = MutableStateFlow<Map<String, Entry>>(emptyMap())
     private val listener = MutableStateFlow<NotificationListenerService?>(null)
@@ -123,6 +126,8 @@ internal object NotificationStore {
 
     fun intent(key: String): PendingIntent? = entries.value[key]?.intent
 
+    fun physicalKeyboard(key: String): Boolean = entries.value[key]?.physicalKeyboard == true
+
     fun cancel(key: String?) {
         val service = listener.value ?: return
         runCatching { if (key == null) service.cancelAllNotifications() else service.cancelNotification(key) }
@@ -143,18 +148,28 @@ internal object NotificationStore {
             )
             ?.toString()?.takeIf { it.isNotBlank() }
         val opens = notification.contentIntent
-        val notice = Notice(sbn.key, sbn.packageName, label(sbn.packageName), title, text, sbn.postTime, opens != null)
-        return Entry(notice, opens)
+        val physicalKeyboard = sbn.packageName == "android" && notification.channelId == "PHYSICAL_KEYBOARD"
+        val notice = Notice(
+            sbn.key, sbn.packageName, label(sbn.packageName), title, text, sbn.postTime, opens != null || physicalKeyboard,
+        )
+        return Entry(notice, opens, physicalKeyboard)
     }
 }
 
-internal class AndroidNotificationFeed @Inject constructor(private val log: LumbinaLog) : NotificationFeed {
+internal class AndroidNotificationFeed @Inject constructor(
+    private val log: LumbinaLog,
+    @ApplicationContext private val context: Context,
+) : NotificationFeed {
 
     override val hasAccess: Flow<Boolean> = NotificationStore.access
 
     override fun notices(): Flow<List<Notice>> = NotificationStore.notices
 
     override fun open(key: String): Boolean {
+        if (NotificationStore.physicalKeyboard(key) && openKeyboardSettings()) {
+            NotificationStore.cancel(key)
+            return true
+        }
         val intent = NotificationStore.intent(key) ?: return false
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -171,6 +186,18 @@ internal class AndroidNotificationFeed @Inject constructor(private val log: Lumb
             false
         }
     }
+
+    private fun openKeyboardSettings(): Boolean =
+        listOf("android.settings.HARD_KEYBOARD_SETTINGS", Settings.ACTION_INPUT_METHOD_SETTINGS).any { action ->
+            try {
+                context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                true
+            } catch (_: ActivityNotFoundException) {
+                false
+            } catch (_: SecurityException) {
+                false
+            }
+        }
 
     override fun dismiss(key: String) = NotificationStore.cancel(key)
 

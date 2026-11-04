@@ -80,6 +80,19 @@ class HandleUtteranceTest {
     }
 
     @Test
+    fun `remote search defaults to the app in front and held search treats commands as titles`() = runTest {
+        val routed = mutableListOf<Pair<VideoSearchTarget, String>>()
+        val handler = handler(searchInApp = { target, query ->
+            routed.add(target to query)
+            VideoSearchResult.Opened
+        })
+        assertEquals(UtteranceOutcome.Searched("Дюна"), handler("Дюна", VideoSearchTarget.Lampa))
+        assertEquals(UtteranceOutcome.Searched("домой"), handler("домой", VideoSearchTarget.Lampa, forceSearch = true))
+        assertEquals(listOf(VideoSearchTarget.Lampa to "дюна", VideoSearchTarget.Lampa to "домой"),
+            routed.map { (target, title) -> target to title.lowercase() })
+    }
+
+    @Test
     fun `a search provider that is starting asks for a retry`() = runTest {
         val handler = handler(searchInApp = { _, _ -> VideoSearchResult.Starting })
         assertEquals(UtteranceOutcome.VideoSearchStarting, handler("найди в кинопоиске дюну"))

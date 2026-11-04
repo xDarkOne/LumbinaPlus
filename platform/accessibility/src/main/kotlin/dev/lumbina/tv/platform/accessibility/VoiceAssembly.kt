@@ -152,6 +152,14 @@ internal class VoiceAssembly(
         false
     }
 
+    private fun foregroundSearch(): VideoSearchTarget = when (commandPorts.device.appInFront()) {
+        "ru.kinopoisk.tv" -> VideoSearchTarget.Kinopoisk
+        "top.rootu.lampa" -> VideoSearchTarget.Lampa
+        "com.vk.tv" -> VideoSearchTarget.VkVideo
+        "me.pnsrc.futuba", "ru.rutube.app.tv", "ru.rutube.app" -> VideoSearchTarget.Rutube
+        else -> VideoSearchTarget.YouTube
+    }
+
     /** The apps under the names people may say; "YouTube" is the app in use for it ([withYouTube]). */
     private suspend fun spokenApps(): List<App> {
         val installed = commandPorts.installedApps.observe().first()
@@ -206,7 +214,7 @@ internal class VoiceAssembly(
             pushToTalk = sessions.pushToTalk(warm, language::languages),
             handsFree = sessions.handsFree(warm, language::languages),
         )
-        return VoiceController(scope, listened, language, utterances(), plate, strings(), log, vidda) {
+        return VoiceController(scope, listened, language, utterances(), plate, strings(), log, vidda, ::foregroundSearch) {
             (warm as? WarmAudioSource)?.stop()
         }
     }

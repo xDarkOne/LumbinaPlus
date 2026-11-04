@@ -11,6 +11,7 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguageMode
 import dev.lumbina.tv.core.domain.speech.VoiceLanguageSetting
 import dev.lumbina.tv.core.domain.speech.logText
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
+import dev.lumbina.tv.core.domain.voice.VideoSearchTarget
 import dev.lumbina.tv.platform.accessibility.VoiceOverlay.Mark
 import java.io.IOException
 import java.util.Locale
@@ -40,12 +41,16 @@ internal class VoiceController(
     private val strings: Strings,
     private val log: LumbinaLog,
     private val vidda: ViddaRecognizer,
+    private val foregroundSearch: () -> VideoSearchTarget,
     private val releaseAudio: () -> Unit,
 ) {
     private val answers = VoiceAnswers(scope, overlay, strings, log)
 
     var useVidda: Boolean = false
     private var viddaListening = false
+    private var remoteTarget: VideoSearchTarget? = null
+    private var remoteDownAt: Long? = null
+    private var searchOnly = false
 
     /** The same recognition, with the capture's drain suited to each way of ending. */
     class Sessions(val pushToTalk: RunVoiceSession, val handsFree: RunVoiceSession)
@@ -111,7 +116,7 @@ internal class VoiceController(
     private var latestPressStartedSession = false
 
     /** Listens until [stop], and with an [endpoint] at most until it hears the speech end. */
-    fun start(endpoint: EndOfSpeech? = null) {
+    fun start(endpoint: EndOfSpeech? = null, fromRemote: Boolean = false) {
         if (job?.isActive == true) {
             if (viddaListening) return stop()
             latestPressStartedSession = false // still finishing the previous utterance; leave it alone
@@ -125,6 +130,9 @@ internal class VoiceController(
             }
             return
         }
+        remoteTarget = if (fromRemote) foregroundSearch() else null
+        remoteDownAt = if (fromRemote) SystemClock.uptimeMillis() else null
+        searchOnly = false
         latestPressStartedSession = true
         held = true
         working = false
@@ -185,7 +193,7 @@ internal class VoiceController(
                         answers.notice(if (ready) strings.viddaNotHeard else strings.viddaNotReady)
                     } else {
                         overlay.flash(strings.heard(text), VoiceAnswers.toRead(text), Mark.Done)
-                        answers.report(handle(text))
+                        answers.report(handlePhrase(text))
                     }
                 }
             } catch (e: TimeoutCancellationException) {
@@ -203,6 +211,8 @@ internal class VoiceController(
     }
 
     fun releaseKey() {
+        searchOnly = searchOnly || isHeldSearch()
+        remoteDownAt = null
         if (!viddaListening) stop()
     }
 
@@ -296,10 +306,16 @@ internal class VoiceController(
             return
         }
         strings.heard(text).let { overlay.flash(it, VoiceAnswers.toRead(it), Mark.Done) }
-        answers.report(handle(text))
+        answers.report(handlePhrase(text))
     }
 
+    private fun isHeldSearch(): Boolean =
+        remoteDownAt?.let { SystemClock.uptimeMillis() - it >= HOLD_SEARCH_MILLIS } == true
+
+    private suspend fun handlePhrase(text: String) = handle(text, remoteTarget, searchOnly || isHeldSearch())
+
     private companion object {
+        const val HOLD_SEARCH_MILLIS = 500L
         const val TAG = "voice"
 
         /** How long "still recognizing" answers a press before the plate says again what it did. */

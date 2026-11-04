@@ -91,7 +91,7 @@ internal class RemoteVoice(
     /** Listens until [release], with the apps' names as they are now. */
     fun listen() {
         namesStale.tryEmit(Unit)
-        controller?.start()
+        controller?.start(fromRemote = true)
     }
 
     fun release() {
