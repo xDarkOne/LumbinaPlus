@@ -2,6 +2,7 @@
 <resources>
     <string name="lumbina_accessibility_description">Кнопка «Домой» на пульте открывает Lumbina (удержание открывает быстрое меню), кнопка микрофона включает голосовой ввод.</string>
     <string name="voice_vidda_connecting">Подключаю голос VIDAA…</string>
+    <string name="voice_vidda_repeat">Слушаю снова. Повторите фразу…</string>
     <string name="voice_listening">Слушаю…</string>
     <string name="voice_recognizing">Распознаю…</string>
     <string name="voice_still_recognizing">Ещё распознаю…</string>

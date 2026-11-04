@@ -36,6 +36,7 @@ import dev.lumbina.tv.core.domain.voice.VideoSearchTarget
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
@@ -89,7 +90,20 @@ internal class VoiceAssembly(
         )
 
         VideoSearchTarget.Kinopoisk -> {
-            val title = kinopoiskTitle(query)
+            val title = try {
+                try {
+                    kinopoiskTitle(query)
+                } catch (e: IllegalArgumentException) {
+                    if (e.message?.contains("applicationComponent is not initialized") != true) throw e
+                    log.log("vidda-voice", "Kinopoisk starting; retrying search")
+                    delay(750)
+                    kinopoiskTitle(query)
+                }
+            } catch (e: RuntimeException) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                log.log("voice", "Kinopoisk search unavailable: $e")
+                null
+            }
             val opened = title?.let(::startSearch) == true
             log.log("vidda-voice", "Kinopoisk match=${title != null} opened=$opened")
             opened
@@ -106,28 +120,23 @@ internal class VoiceAssembly(
     private suspend fun kinopoiskTitle(query: String): Intent? = withContext(Dispatchers.IO) {
         val suggestions = Uri.parse("content://ru.kinopoisk.tv.search.kinopoisk.tv/search_suggest_query?limit=10")
         val wanted = comparableTitle(query)
-        try {
-            service.contentResolver.query(suggestions, null, null, arrayOf(query), null)?.use { rows ->
-                val titleColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_TEXT_1)
-                val linkColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_DATA)
-                val actionColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_ACTION)
-                if (titleColumn < 0 || linkColumn < 0) return@use null
-                var best: Intent? = null
-                while (rows.moveToNext()) {
-                    val title = comparableTitle(rows.getString(titleColumn).orEmpty())
-                    val link = rows.getString(linkColumn)?.takeIf { it.isNotBlank() } ?: continue
-                    val exact = title == wanted
-                    val prefix = title.isNotEmpty() && (title.startsWith("$wanted ") || wanted.startsWith("$title "))
-                    if (!exact && (!prefix || best != null)) continue
-                    val action = if (actionColumn < 0) null else rows.getString(actionColumn)
-                    best = Intent(action ?: Intent.ACTION_VIEW, Uri.parse(link)).setPackage("ru.kinopoisk.tv")
-                    if (exact) break
-                }
-                best
+        service.contentResolver.query(suggestions, null, null, arrayOf(query), null)?.use { rows ->
+            val titleColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_TEXT_1)
+            val linkColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_DATA)
+            val actionColumn = rows.getColumnIndex(SearchManager.SUGGEST_COLUMN_INTENT_ACTION)
+            if (titleColumn < 0 || linkColumn < 0) return@use null
+            var best: Intent? = null
+            while (rows.moveToNext()) {
+                val title = comparableTitle(rows.getString(titleColumn).orEmpty())
+                val link = rows.getString(linkColumn)?.takeIf { it.isNotBlank() } ?: continue
+                val exact = title == wanted
+                val prefix = title.isNotEmpty() && (title.startsWith("$wanted ") || wanted.startsWith("$title "))
+                if (!exact && (!prefix || best != null)) continue
+                val action = if (actionColumn < 0) null else rows.getString(actionColumn)
+                best = Intent(action ?: Intent.ACTION_VIEW, Uri.parse(link)).setPackage("ru.kinopoisk.tv")
+                if (exact) break
             }
-        } catch (e: RuntimeException) {
-            log.log("voice", "Kinopoisk search unavailable: $e")
-            null
+            best
         }
     }
 
@@ -209,6 +218,7 @@ internal class VoiceAssembly(
     private fun strings() = VoiceController.Strings(
         listening = service.getString(R.string.voice_listening),
         viddaConnecting = service.getString(R.string.voice_vidda_connecting),
+        viddaRepeat = service.getString(R.string.voice_vidda_repeat),
         recognizing = service.getString(R.string.voice_recognizing),
         stillRecognizing = service.getString(R.string.voice_still_recognizing),
         notStarted = service.getString(R.string.voice_not_started),

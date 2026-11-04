@@ -3,6 +3,7 @@
     <string name="lumbina_accessibility_label" translatable="false">Lumbina</string>
     <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (holding it opens the quick menu) and turns the mic button into voice input.</string>
     <string name="voice_vidda_connecting">Connecting to VIDAA voice…</string>
+    <string name="voice_vidda_repeat">Listening again. Please repeat…</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_recognizing">Recognizing…</string>
     <string name="voice_still_recognizing">Still recognizing…</string>

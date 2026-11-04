@@ -20,6 +20,8 @@ import kotlin.coroutines.resumeWithException
 
 /** Vidda's recognition service captures the remote itself. All methods run on the main thread. */
 internal class ViddaRecognizer(private val context: Context, private val log: LumbinaLog) {
+    data class Result(val readings: List<String> = emptyList(), val noMatch: Boolean = false)
+
     private var current: SpeechRecognizer? = null
 
     fun available(): Boolean {
@@ -34,7 +36,7 @@ internal class ViddaRecognizer(private val context: Context, private val log: Lu
             pm.checkPermission(Manifest.permission.RECORD_AUDIO, context.packageName) == PackageManager.PERMISSION_GRANTED
     }
 
-    suspend fun listen(onReady: () -> Unit, onPartial: (String) -> Unit): List<String> = withTimeout(TOTAL_TIMEOUT_MILLIS) {
+    suspend fun listen(onReady: () -> Unit, onPartial: (String) -> Unit): Result = withTimeout(TOTAL_TIMEOUT_MILLIS) {
         suspendCancellableCoroutine { continuation ->
             val recognizer = SpeechRecognizer.createSpeechRecognizer(context, COMPONENT)
             current = recognizer
@@ -43,16 +45,16 @@ internal class ViddaRecognizer(private val context: Context, private val log: Lu
             var speech = false
             val handler = Handler(Looper.getMainLooper())
             lateinit var deadline: Runnable
-            fun finish(readings: List<String>) {
+            fun finish(result: Result) {
                 if (!continuation.isActive) return
                 handler.removeCallbacks(deadline)
                 if (current === recognizer) current = null
                 recognizer.destroy()
-                continuation.resume(readings)
+                continuation.resume(result)
             }
             deadline = Runnable {
                 log.log(TAG, "connection timed out after ${elapsed(started)} ms")
-                finish(emptyList())
+                finish(Result())
             }
             handler.postDelayed(deadline, CONNECT_TIMEOUT_MILLIS)
             recognizer.setRecognitionListener(object : RecognitionListener {
@@ -69,13 +71,13 @@ internal class ViddaRecognizer(private val context: Context, private val log: Lu
                 override fun onEndOfSpeech() = Unit
                 override fun onError(error: Int) {
                     log.log(TAG, "error=$error ready=$ready speech=$speech after ${elapsed(started)} ms")
-                    finish(emptyList())
+                    finish(Result(noMatch = error == SpeechRecognizer.ERROR_NO_MATCH))
                 }
 
                 override fun onResults(results: Bundle?) {
                     val readings = results.readings()
                     log.log(TAG, "results=${readings.size} speech=$speech after ${elapsed(started)} ms")
-                    finish(readings)
+                    finish(Result(readings))
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
                     if (continuation.isActive) partialResults.readings().firstOrNull()?.let(onPartial)
