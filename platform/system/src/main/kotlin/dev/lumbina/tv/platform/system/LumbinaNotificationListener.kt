@@ -50,7 +50,7 @@ class LumbinaNotificationListener : NotificationListenerService() {
         tizenTubeHistory?.stop()
         tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         lampaVimuHistory?.stop()
-        lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass)).also { it.start() }
+        lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         if (!lampaReceiverRegistered) {
             ContextCompat.registerReceiver(
                 this, lampaWindowReceiver, IntentFilter(LampaWatchNext.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,

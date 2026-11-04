@@ -2,6 +2,7 @@ package dev.lumbina.tv.platform.system
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -10,9 +11,16 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import dev.lumbina.tv.core.common.LampaWatchNext as Watch
+import dev.lumbina.tv.core.common.LumbinaLog
+import java.io.File
+import java.io.IOException
 
 /** Records Vimu only when the window watcher saw LAMPA launch it. */
-internal class LampaVimuHistory(context: Context, private val listener: ComponentName) {
+internal class LampaVimuHistory(
+    private val context: Context,
+    private val listener: ComponentName,
+    private val log: LumbinaLog,
+) {
     private val manager = context.getSystemService(MediaSessionManager::class.java)
     private val prefs = context.getSharedPreferences(Watch.PREFERENCES, Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
@@ -74,7 +82,7 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
                 val rawTitle = metadata.title()
                 if (state != null && metadata != null && rawTitle?.startsWith(LAMPA_PREFIX, ignoreCase = true) == true) {
                     val name = rawTitle.drop(LAMPA_PREFIX.length).trim()
-                    if (name.isNotEmpty()) store(Sample(name, position(state), metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)))
+                    if (name.isNotEmpty()) store(sample(name, state, metadata))
                 }
             }
             Watch.LEFT -> {
@@ -120,7 +128,7 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
         val name = metadata.title() ?: return
         if (name != title) return
         if (state.lastPositionUpdateTime < enteredAt - SESSION_GRACE) return
-        latest = Sample(name, position(state), metadata.getLong(MediaMetadata.METADATA_KEY_DURATION))
+        latest = sample(name, state, metadata)
     }
 
     private fun position(state: PlaybackState): Long {
@@ -146,8 +154,35 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
             return
         }
         if (sample.position < MIN_POSITION) return
+        val previousArt = prefs.getString(Watch.ARTWORK, null)
+        val art = savePoster(sample) ?: previousArt.takeIf { prefs.getString(Watch.TITLE, null) == sample.title }
         prefs.edit().putString(Watch.TITLE, sample.title).putLong(Watch.POSITION, sample.position)
-            .putLong(Watch.DURATION, sample.duration).putLong(Watch.UPDATED, System.currentTimeMillis()).apply()
+            .putLong(Watch.DURATION, sample.duration).putLong(Watch.UPDATED, System.currentTimeMillis())
+            .putString(Watch.ARTWORK, art).apply()
+        previousArt?.takeIf { it != art }?.let { File(it).delete() }
+    }
+
+    private fun sample(title: String, state: PlaybackState, metadata: MediaMetadata): Sample {
+        val art = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        return Sample(title, position(state), metadata.getLong(MediaMetadata.METADATA_KEY_DURATION), art)
+    }
+
+    private fun savePoster(sample: Sample): String? {
+        val art = sample.poster ?: return null
+        val file = File(context.filesDir, "lampa-poster-${sample.title.hashCode()}.jpg")
+        if (file.isFile) return file.absolutePath
+        val temporary = File(context.filesDir, "lampa-poster.tmp")
+        return try {
+            val saved = temporary.outputStream().use { art.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+            file.absolutePath.takeIf { saved && temporary.renameTo(file) }
+        } catch (e: IOException) {
+            log.log("lampa-history", "could not store poster: $e")
+            null
+        } finally {
+            temporary.delete()
+        }
     }
 
     private fun MediaMetadata?.title(): String? =
@@ -157,7 +192,7 @@ internal class LampaVimuHistory(context: Context, private val listener: Componen
     private fun cleanTitle(title: String): String =
         if (title.startsWith(LAMPA_PREFIX, ignoreCase = true)) title.drop(LAMPA_PREFIX.length).trim() else title
 
-    private data class Sample(val title: String, val position: Long, val duration: Long)
+    private data class Sample(val title: String, val position: Long, val duration: Long, val poster: Bitmap?)
 
     private companion object {
         const val LAMPA_PREFIX = "[LAMPA]"

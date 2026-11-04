@@ -15,5 +15,6 @@ object LampaWatchNext {
     const val POSITION = "position"
     const val DURATION = "duration"
     const val UPDATED = "updated"
+    const val ARTWORK = "artwork"
     const val CARD_ID = -20261104L
 }

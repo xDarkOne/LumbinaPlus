@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
 import android.database.ContentObserver
 import android.database.Cursor
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +22,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dev.lumbina.tv.core.common.LampaWatchNext
+import dev.lumbina.tv.core.common.LumbinaComponents
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.common.TizenTubeWatchNext as LocalCard
 import dev.lumbina.tv.core.domain.access.CompanionApp
@@ -145,7 +148,8 @@ internal class AndroidTvChannels @Inject constructor(
                 packageName = LampaWatchNext.LAMPA,
                 title = title,
                 subtitle = null,
-                artUri = null,
+                artUri = prefs.getString(LampaWatchNext.ARTWORK, null)?.let(::File)?.takeIf { it.isFile }
+                    ?.let { Uri.fromFile(it).toString() },
                 shape = null,
                 intentUri = intent,
                 progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
@@ -279,7 +283,7 @@ internal class AndroidProgramLauncher @Inject constructor(
 ) : ProgramLauncher {
 
     override fun open(card: ProgramCard): Boolean {
-        val intent = card.intentUri?.let(::parse)?.apply {
+        val intent = resumeTizenTube(card) ?: card.intentUri?.let(::parse)?.apply {
             setPackage(card.packageName)
             selector = null
             flags = 0 // none of the row's own flags, such as URI permission grants
@@ -296,6 +300,23 @@ internal class AndroidProgramLauncher @Inject constructor(
             log.log(TAG, "open ${card.packageName} ${card.id} not allowed: $e")
             false
         }
+    }
+
+    private fun resumeTizenTube(card: ProgramCard): Intent? {
+        if (card.id != LocalCard.CARD_ID || card.packageName != LocalCard.PACKAGE) return null
+        val listener = ComponentName(context, LumbinaComponents.NOTIFICATION_LISTENER)
+        val sessions = try {
+            context.getSystemService(MediaSessionManager::class.java).getActiveSessions(listener)
+        } catch (_: SecurityException) {
+            return null
+        }
+        val sameVideo = sessions.any { session ->
+            session.packageName == card.packageName &&
+                session.playbackState?.state in setOf(PlaybackState.STATE_PLAYING, PlaybackState.STATE_PAUSED) &&
+                session.metadata?.description?.title?.toString()?.trim() == card.title.trim()
+        }
+        return if (sameVideo) context.packageManager.getLeanbackLaunchIntentForPackage(card.packageName)
+            ?: context.packageManager.getLaunchIntentForPackage(card.packageName) else null
     }
 
     private fun parse(uri: String): Intent? = try {
