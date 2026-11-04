@@ -168,15 +168,11 @@ internal class AndroidTvChannels @Inject constructor(
             val id = prefs.getString(LocalCard.MEDIA_ID, null)
             val position = prefs.getLong(LocalCard.POSITION, 0)
             val duration = prefs.getLong(LocalCard.DURATION, 0)
-            val url = if (id != null && id.matches(Regex("[A-Za-z0-9_-]{11}"))) {
-                Uri.parse("https://www.youtube.com/watch").buildUpon()
-                    .appendQueryParameter("v", id).appendQueryParameter("t", "${position / 1000}s").build()
-            } else {
-                Uri.parse("https://www.youtube.com/tv").buildUpon()
-                    .appendQueryParameter("launch", "voice").appendQueryParameter("vs", "11")
-                    .appendQueryParameter("va", "search").appendQueryParameter("vaa", title).build()
+            val intent = id?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }?.let { video ->
+                val url = Uri.parse("https://www.youtube.com/watch").buildUpon()
+                    .appendQueryParameter("v", video).appendQueryParameter("t", "${position / 1000}s").build()
+                Intent(Intent.ACTION_VIEW, url).toUri(Intent.URI_INTENT_SCHEME)
             }
-            val intent = Intent(Intent.ACTION_VIEW, url).toUri(Intent.URI_INTENT_SCHEME)
             val artwork = prefs.getString(LocalCard.ARTWORK, null)?.let(::File)?.takeIf { it.isFile }
             return ProgramCard(
                 id = LocalCard.CARD_ID,

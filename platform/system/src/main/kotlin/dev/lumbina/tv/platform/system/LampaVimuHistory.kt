@@ -80,8 +80,8 @@ internal class LampaVimuHistory(
                 val state = controller?.playbackState
                 val metadata = controller?.metadata
                 val rawTitle = metadata.title()
-                if (state != null && metadata != null && rawTitle?.startsWith(LAMPA_PREFIX, ignoreCase = true) == true) {
-                    val name = rawTitle.drop(LAMPA_PREFIX.length).trim()
+                if (state != null && metadata != null && rawTitle != null) {
+                    val name = cleanTitle(rawTitle)
                     if (name.isNotEmpty()) store(sample(name, state, metadata))
                 }
             }
@@ -156,6 +156,7 @@ internal class LampaVimuHistory(
         if (sample.position < MIN_POSITION) return
         val previousArt = prefs.getString(Watch.ARTWORK, null)
         val art = savePoster(sample) ?: previousArt.takeIf { prefs.getString(Watch.TITLE, null) == sample.title }
+        log.log("lampa-history", "saved player position, poster=${art != null}")
         prefs.edit().putString(Watch.TITLE, sample.title).putLong(Watch.POSITION, sample.position)
             .putLong(Watch.DURATION, sample.duration).putLong(Watch.UPDATED, System.currentTimeMillis())
             .putString(Watch.ARTWORK, art).apply()
