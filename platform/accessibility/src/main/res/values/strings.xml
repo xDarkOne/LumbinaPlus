@@ -103,4 +103,5 @@
     <string name="voice_vidda_not_ready">VIDAA voice is still starting. Please try again.</string>
     <string name="voice_vidda_not_heard">Couldn’t hear the phrase. Please try again.</string>
     <string name="voice_video_search_starting">Kinopoisk search is still starting. Please repeat the command.</string>
+    <string name="voice_rutube_open_search">Open Search in RUTUBE with the remote</string>
 </resources>

@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.lumbina.tv.core.common.ALL_INSTALLED_APPS
 import dev.lumbina.tv.core.domain.app.AppUsage
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.speech.ViddaVoiceSetup
 import dev.lumbina.tv.core.domain.update.AppUpdates
 import javax.inject.Named
 
@@ -20,4 +21,6 @@ internal interface PackagesModule {
     @Binds fun appUsage(impl: AndroidAppUsage): AppUsage
 
     @Binds fun appUpdates(impl: GitHubUpdates): AppUpdates
+
+    @Binds fun viddaVoiceSetup(impl: AndroidViddaVoiceSetup): ViddaVoiceSetup
 }

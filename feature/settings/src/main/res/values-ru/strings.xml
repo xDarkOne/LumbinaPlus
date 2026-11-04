@@ -542,4 +542,11 @@
     <string name="access_system_language_forget">Не восстанавливать выбранный язык</string>
     <string name="access_system_language_hint">Меняет язык всего проектора и восстанавливает выбор, если прошивка его сбросит.</string>
     <string name="access_system_language_adb">Для смены языка подключитесь к отладке проектора.</string>
+    <string name="voice_vidda_setup_title">Настройка голоса VIDAA</string>
+    <string name="voice_vidda_setup_working">Настраиваю голос…</string>
+    <string name="voice_vidda_setup_missing">OK скачает и установит проверенный голосовой сервис через локальную отладку.</string>
+    <string name="voice_vidda_setup_mic">OK выдаст разрешение на микрофон через локальную отладку.</string>
+    <string name="voice_vidda_setup_ready">Сервис установлен, доступ к микрофону есть.</string>
+    <string name="voice_vidda_setup_adb">Подключите локальную отладку в разделе «Доступ» и повторите.</string>
+    <string name="voice_vidda_setup_failed">Не удалось настроить голос. Проверьте отладку и повторите.</string>
 </resources>

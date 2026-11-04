@@ -105,6 +105,10 @@ private fun LookPage(viewModel: HomeSettingsViewModel = hiltViewModel()) {
 
 @Composable
 private fun VoicePage(viewModel: VoiceSettingsViewModel = hiltViewModel()) {
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refreshVidda()
+        onPauseOrDispose {}
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val commands by viewModel.commands.collectAsStateWithLifecycle()
     val recognizer by viewModel.recognizer.collectAsStateWithLifecycle()
@@ -121,6 +125,7 @@ private fun VoicePage(viewModel: VoiceSettingsViewModel = hiltViewModel()) {
         onToggleCommands = viewModel::toggleCommands,
         recognizer = who ?: Recognizer(),
         onChooseProvider = viewModel::chooseProvider,
+        onPrepareVidda = viewModel::prepareVidda,
     )
 }
 

@@ -8,6 +8,9 @@
     <queries>
         <package android:name="org.vidda.googlevoicesearch" />
         <package android:name="ru.kinopoisk.tv" />
+        <package android:name="me.pnsrc.futuba" />
+        <package android:name="ru.rutube.app.tv" />
+        <package android:name="ru.rutube.app" />
     </queries>
 
     <application>

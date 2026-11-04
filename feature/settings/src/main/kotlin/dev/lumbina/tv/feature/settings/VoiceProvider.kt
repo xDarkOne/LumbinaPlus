@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
+import dev.lumbina.tv.core.domain.speech.ViddaVoiceSetup.State
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.line
@@ -89,4 +90,22 @@ private fun providerName(provider: SpeechProvider): String = stringResource(
 private fun providerText(recognizer: Recognizer): String {
     val name = providerName(recognizer.provider)
     return if (recognizer.missingKey) line(name, stringResource(R.string.voice_provider_no_key)) else name
+}
+
+internal fun LazyListScope.viddaSetupRow(recognizer: Recognizer, onPrepare: () -> Unit) {
+    val setup = recognizer.viddaSetup ?: return
+    item(key = "vidda-voice-setup") {
+        val status = if (recognizer.viddaBusy) R.string.voice_vidda_setup_working else when (setup) {
+            State.Missing -> R.string.voice_vidda_setup_missing
+            State.NeedsMicrophone -> R.string.voice_vidda_setup_mic
+            State.Ready -> R.string.voice_vidda_setup_ready
+            State.DebuggingRequired -> R.string.voice_vidda_setup_adb
+            State.Failed -> R.string.voice_vidda_setup_failed
+        }
+        SettingRow(
+            onClick = { if (!recognizer.viddaBusy && setup != State.Ready) onPrepare() },
+            headlineContent = { Text(stringResource(R.string.voice_vidda_setup_title)) },
+            supportingContent = { Text(stringResource(status)) },
+        )
+    }
 }

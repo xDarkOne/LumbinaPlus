@@ -524,4 +524,11 @@
     <string name="access_system_language_forget">Stop restoring the saved language</string>
     <string name="access_system_language_hint">This changes the projector language and restores your choice if the firmware resets it.</string>
     <string name="access_system_language_adb">Connect to the projector’s debugging to change its language.</string>
+    <string name="voice_vidda_setup_title">VIDAA voice setup</string>
+    <string name="voice_vidda_setup_working">Setting up voice…</string>
+    <string name="voice_vidda_setup_missing">OK downloads and installs the verified VIDAA voice service via local debugging.</string>
+    <string name="voice_vidda_setup_mic">OK grants microphone access via local debugging.</string>
+    <string name="voice_vidda_setup_ready">Service and microphone access are ready.</string>
+    <string name="voice_vidda_setup_adb">Connect to local debugging in Access, then try again.</string>
+    <string name="voice_vidda_setup_failed">Setup failed. Check debugging and try again.</string>
 </resources>

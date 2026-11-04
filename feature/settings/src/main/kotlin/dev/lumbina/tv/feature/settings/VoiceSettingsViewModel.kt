@@ -11,6 +11,7 @@ import dev.lumbina.tv.core.domain.speech.SpeechApp
 import dev.lumbina.tv.core.domain.speech.SpeechApps
 import dev.lumbina.tv.core.domain.speech.SpeechKeys
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
+import dev.lumbina.tv.core.domain.speech.ViddaVoiceSetup
 import dev.lumbina.tv.core.domain.speech.VoiceLanguage
 import dev.lumbina.tv.core.domain.speech.VoiceLanguageMode
 import dev.lumbina.tv.core.domain.speech.VoiceLanguages
@@ -18,6 +19,7 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguagesState
 import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -33,10 +35,33 @@ class VoiceSettingsViewModel @Inject constructor(
     installedApps: InstalledApps,
     profile: DeviceProfile,
     private val access: LocalAccess,
+    private val viddaSetup: ViddaVoiceSetup,
 ) : ViewModel() {
 
     /** Voice input only works on devices whose remote mic Lumbina can read. */
     val voiceSupported: Boolean = profile.hasRemoteMic
+
+    private val viddaSupported = profile.id == "hisense-vidaa"
+    private val viddaState = MutableStateFlow(if (viddaSupported) viddaSetup.status() else null)
+    private val viddaBusy = MutableStateFlow(false)
+
+    fun refreshVidda() {
+        if (viddaSupported && !viddaBusy.value) viddaState.value = viddaSetup.status()
+    }
+
+    fun prepareVidda() {
+        if (!viddaSupported || !viddaBusy.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                viddaState.value = viddaSetup.prepare()
+                if (viddaState.value == ViddaVoiceSetup.State.Ready) {
+                    voiceSettings.update { it.copy(provider = SpeechProvider.Vidda) }
+                }
+            } finally {
+                viddaBusy.value = false
+            }
+        }
+    }
 
     val state: StateFlow<VoiceLanguagesState?> =
         voiceLanguages.state.stateIn(viewModelScope, WhileUiSubscribed, null)
@@ -52,8 +77,9 @@ class VoiceSettingsViewModel @Inject constructor(
      */
     val recognizer: StateFlow<Recognizer?> =
         // Asked again when apps change: the one that recognizes may be installed or removed meanwhile.
-        combine(voiceSettings.settings, speechKeys.providers, installedApps.observe()) { settings, withKey, _ ->
-            Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull(), profile.id == "hisense-vidaa")
+        combine(voiceSettings.settings, speechKeys.providers, installedApps.observe(), viddaState, viddaBusy) {
+            settings, withKey, _, setup, busy ->
+            Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull(), viddaSupported, setup, busy)
         }
             .stateIn(viewModelScope, WhileUiSubscribed, null)
 
@@ -90,6 +116,8 @@ data class Recognizer(
     /** Another app that can recognize here; null where there is none to offer. */
     val app: SpeechApp? = null,
     val viddaSupported: Boolean = false,
+    val viddaSetup: ViddaVoiceSetup.State? = null,
+    val viddaBusy: Boolean = false,
 ) {
     /** A cloud service is chosen, but its key isn't set. */
     val missingKey: Boolean get() = provider.isCloud && provider !in withKey

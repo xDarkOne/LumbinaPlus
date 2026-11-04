@@ -90,7 +90,17 @@ internal class VoiceAssembly(
                     .setPackage("com.vk.tv"),
             )
 
-            VideoSearchTarget.Rutube -> FutubaSearch(service).search(query)
+            VideoSearchTarget.Rutube -> {
+                val futuba = service.packageManager.getLeanbackLaunchIntentForPackage("me.pnsrc.futuba")
+                    ?: service.packageManager.getLaunchIntentForPackage("me.pnsrc.futuba")
+                if (futuba != null) {
+                    FutubaSearch(service).search(query)
+                } else {
+                    RutubeSearch(service) {
+                        plate.show(service.getString(R.string.voice_rutube_open_search), VoiceOverlay.Mark.Working)
+                    }.search(query)
+                }
+            }
 
             VideoSearchTarget.Kinopoisk -> {
                 val title = try {

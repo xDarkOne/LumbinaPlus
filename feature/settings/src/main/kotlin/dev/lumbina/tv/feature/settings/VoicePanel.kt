@@ -42,6 +42,7 @@ fun VoicePanel(
     onToggleCommands: () -> Unit,
     recognizer: Recognizer,
     onChooseProvider: (SpeechProvider) -> Unit,
+    onPrepareVidda: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var removing by remember { mutableStateOf<VoiceLanguage?>(null) }
@@ -56,6 +57,7 @@ fun VoicePanel(
         if (state == null) return@SettingsList
         item { Header(stringResource(R.string.voice_mode_header)) }
         providerRows(recognizer, onClick = { choosing = true })
+        viddaSetupRow(recognizer, onPrepareVidda)
         // Another app hears in the language set in it: Lumbina's languages and their mode are not shown.
         if (!recognizer.byApp) {
             item {

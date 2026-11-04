@@ -108,4 +108,5 @@
     <string name="voice_vidda_not_ready">Голосовой модуль VIDAA ещё запускается. Попробуйте ещё раз.</string>
     <string name="voice_vidda_not_heard">Не расслышал фразу. Попробуйте ещё раз.</string>
     <string name="voice_video_search_starting">Поиск Кинопоиска ещё запускается. Повторите команду.</string>
+    <string name="voice_rutube_open_search">Откройте поиск в RUTUBE с пульта</string>
 </resources>
