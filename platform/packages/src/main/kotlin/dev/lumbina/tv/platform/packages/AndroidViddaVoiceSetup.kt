@@ -14,6 +14,8 @@ import dev.lumbina.tv.core.domain.speech.ViddaVoiceSetup
 import dev.lumbina.tv.core.domain.speech.ViddaVoiceSetup.State
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.URL
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -58,8 +60,10 @@ internal class AndroidViddaVoiceSetup @Inject constructor(
         }
     }
 
-    private fun canRecord(app: String): Boolean =
-        context.packageManager.checkPermission(Manifest.permission.RECORD_AUDIO, app) == PackageManager.PERMISSION_GRANTED
+    private fun canRecord(app: String): Boolean = context.packageManager.checkPermission(
+        Manifest.permission.RECORD_AUDIO,
+        app,
+    ) == PackageManager.PERMISSION_GRANTED
 
     private suspend fun install(): Boolean {
         val file = File.createTempFile("vidda-voice-", ".apk", context.cacheDir)
@@ -71,17 +75,7 @@ internal class AndroidViddaVoiceSetup @Inject constructor(
             }
             download.getInputStream().use { input ->
                 file.outputStream().use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var size = 0L
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        size += read
-                        if (size > MAX_APK_BYTES) throw IOException("Voice service APK exceeds size limit")
-                        digest.update(buffer, 0, read)
-                        output.write(buffer, 0, read)
-                    }
+                    copyAndHash(input, output, digest)
                 }
             }
             if (digest.digest().joinToString("") { "%02x".format(it) } != SHA256) {
@@ -95,10 +89,25 @@ internal class AndroidViddaVoiceSetup @Inject constructor(
         }
     }
 
+    private suspend fun copyAndHash(input: InputStream, output: OutputStream, digest: MessageDigest) {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var size = 0L
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val read = input.read(buffer)
+            if (read < 0) break
+            size += read
+            if (size > MAX_APK_BYTES) throw IOException("Voice service APK exceeds size limit")
+            digest.update(buffer, 0, read)
+            output.write(buffer, 0, read)
+        }
+    }
+
     private companion object {
         const val PACKAGE = "org.vidda.googlevoicesearch"
         const val RECOGNIZER = "com.google.android.katniss.search.serviceapi.KatnissRecognitionService"
-        const val DOWNLOAD_URL = "https://github.com/xDarkOne/voicekey/releases/download/voice-service/Vidda-Voice-Service.apk"
+        const val DOWNLOAD_URL = "https://github.com/xDarkOne/voicekey/releases/download/" +
+            "voice-service/Vidda-Voice-Service.apk"
         const val SHA256 = "8baddc4007bdd7b40a04a86fba7f51ec828c51a90255d4b57d19751fb49ee668"
         const val MAX_APK_BYTES = 80L * 1024 * 1024
     }

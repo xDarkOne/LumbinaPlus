@@ -150,13 +150,16 @@ internal class TizenTubeHistory(
         val path = uri.pathSegments
         val candidate = when (uri.host?.lowercase()) {
             "youtu.be" -> path.firstOrNull()
+
             "youtube.com", "www.youtube.com", "m.youtube.com" ->
                 uri.getQueryParameter("v") ?: path.getOrNull(1)?.takeIf {
                     path.firstOrNull() in setOf("shorts", "embed", "live")
                 }
+
             "i.ytimg.com", "img.youtube.com" -> path.getOrNull(1)?.takeIf {
                 path.firstOrNull() in setOf("vi", "vi_webp")
             }
+
             else -> null
         }
         return candidate?.takeIf(VIDEO_ID::matches)
@@ -176,28 +179,32 @@ internal class TizenTubeHistory(
         val at = (position + (elapsed.coerceAtLeast(0) * speed).toLong()).coerceAtLeast(0)
         if (duration >= MIN_DURATION && at >= duration * DONE_SHARE) {
             val savedId = preferences.getString(Card.MEDIA_ID, null)
-            val sameVideo = if (mediaId != null && savedId != null) mediaId == savedId else {
+            val sameVideo = if (mediaId != null && savedId != null) {
+                mediaId == savedId
+            } else {
                 preferences.getString(Card.TITLE, null) == name
             }
             if (sameVideo) preferences.edit().clear().apply()
             return
         }
         if (at < MIN_POSITION || duration in 1 until MIN_DURATION) return
-        val artPath = try {
-            artwork?.let { bitmap ->
-                val artworkFile = File(context.filesDir, "tizentube-${(mediaId ?: name).hashCode()}.jpg")
-                val temporary = File(context.filesDir, "tizentube-artwork.tmp")
-                val saved = temporary.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-                if (saved && temporary.renameTo(artworkFile)) artworkFile.absolutePath else null
-            }
-        } catch (e: IOException) {
-            log.log(TAG, "artwork write failed: $e")
-            null
-        }
+        val artPath = saveArtwork(name)
         preferences.edit().putString(Card.TITLE, name).putString(Card.ARTIST, artist)
             .putString(Card.MEDIA_ID, mediaId).putLong(Card.DURATION, duration)
             .putLong(Card.POSITION, at).putString(Card.ARTWORK, artPath)
             .putLong(Card.UPDATED, System.currentTimeMillis()).apply()
+    }
+
+    private fun saveArtwork(name: String): String? = try {
+        artwork?.let { bitmap ->
+            val artworkFile = File(context.filesDir, "tizentube-${(mediaId ?: name).hashCode()}.jpg")
+            val temporary = File(context.filesDir, "tizentube-artwork.tmp")
+            val saved = temporary.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+            if (saved && temporary.renameTo(artworkFile)) artworkFile.absolutePath else null
+        }
+    } catch (e: IOException) {
+        log.log(TAG, "artwork write failed: $e")
+        null
     }
 
     private companion object {

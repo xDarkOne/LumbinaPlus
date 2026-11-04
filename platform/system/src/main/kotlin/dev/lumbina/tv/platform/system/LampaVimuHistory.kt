@@ -16,6 +16,7 @@ import java.io.File
 import java.io.IOException
 
 /** Records Vimu only when the window watcher saw LAMPA launch it. */
+@Suppress("TooManyFunctions") // Media-session observation and the lifetime of its local card are kept together.
 internal class LampaVimuHistory(
     private val context: Context,
     private val listener: ComponentName,
@@ -69,11 +70,13 @@ internal class LampaVimuHistory(
                 latest = null
                 follow(activeSessions())
             }
+
             Watch.RETURNED -> {
                 val name = title ?: latest?.title
                 if (name != null && prefs.getString(Watch.TITLE, null) == cleanTitle(name)) prefs.edit().clear().apply()
                 finishVisit()
             }
+
             Watch.HOME_FROM_PLAYER -> {
                 val controller = activeSessions().filter { it.packageName == Watch.VIMU }
                     .maxByOrNull { it.playbackState?.lastPositionUpdateTime ?: 0L }
@@ -85,6 +88,7 @@ internal class LampaVimuHistory(
                     if (name.isNotEmpty()) store(sample(name, state, metadata))
                 }
             }
+
             Watch.LEFT -> {
                 saveIfCurrent()
                 finishVisit()

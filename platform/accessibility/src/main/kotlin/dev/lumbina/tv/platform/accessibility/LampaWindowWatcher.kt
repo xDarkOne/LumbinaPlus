@@ -21,11 +21,15 @@ internal class LampaWindowWatcher(private val service: AccessibilityService, pri
         if (fromPlayer) report(Watch.HOME_FROM_PLAYER)
     }
 
+    // Window types and transitions need separate handling to avoid treating overlays as apps.
+    @Suppress("CyclomaticComplexMethod")
     fun onEvent(event: AccessibilityEvent) {
         val app = when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> service.windows
-                .firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
-                ?.root?.packageName?.toString()
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED ->
+                service.windows
+                    .firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
+                    ?.root?.packageName?.toString()
+
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val className = event.className?.toString().orEmpty()
                 if (className.startsWith("android.widget.") || className.startsWith("android.view.")) return
@@ -33,6 +37,7 @@ internal class LampaWindowWatcher(private val service: AccessibilityService, pri
                 if (candidate == service.packageName && className != "dev.lumbina.tv.MainActivity") return
                 candidate
             }
+
             else -> null
         } ?: return
         if (app in OVERLAYS || app == lastApp) return
@@ -47,7 +52,9 @@ internal class LampaWindowWatcher(private val service: AccessibilityService, pri
     }
 
     private fun report(destination: String) {
-        service.sendBroadcast(Intent(Watch.ACTION).setPackage(service.packageName).putExtra(Watch.DESTINATION, destination))
+        service.sendBroadcast(
+            Intent(Watch.ACTION).setPackage(service.packageName).putExtra(Watch.DESTINATION, destination),
+        )
     }
 
     private companion object {

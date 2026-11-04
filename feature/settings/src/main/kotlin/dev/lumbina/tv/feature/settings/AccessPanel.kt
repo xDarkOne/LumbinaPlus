@@ -60,8 +60,16 @@ fun AccessPanel(
         connection(state, commands, top)
         item { Header(stringResource(R.string.access_uses)) }
         uses(state, connected, commands)
-        if (activeSystemLanguage != null) item(key = "vidda-system-language") {
-            SystemLanguageRow(activeSystemLanguage, state.settings.systemLanguage, connected, localeStatus, commands)
+        if (activeSystemLanguage != null) {
+            item(key = "vidda-system-language") {
+                SystemLanguageRow(
+                    activeSystemLanguage,
+                    state.settings.systemLanguage,
+                    connected,
+                    localeStatus,
+                    commands,
+                )
+            }
         }
         state.micApps?.let { micApps(it, commands, forget) }
         // With debugging off there is no access to take back, and nothing for the network to reach.
@@ -103,12 +111,15 @@ private fun SystemLanguageRow(
     val title = stringResource(R.string.access_system_language)
     val summary = when (status) {
         AccessViewModel.LocaleStatus.Applying -> stringResource(R.string.access_system_language_applying)
+
         AccessViewModel.LocaleStatus.Saved -> if (saved == null) {
             stringResource(R.string.access_system_language_forgotten)
         } else {
             stringResource(R.string.access_system_language_saved, saved.tag)
         }
+
         AccessViewModel.LocaleStatus.Failed -> stringResource(R.string.access_system_language_failed)
+
         null -> stringResource(R.string.access_system_language_active, active)
     }
     SettingRow(
@@ -119,16 +130,24 @@ private fun SystemLanguageRow(
     if (choosing) {
         val choices = buildList {
             if (connected) {
-                add(Choice("Русский", chosen = saved == ViddaLanguage.Russian) {
-                    commands.setSystemLanguage(ViddaLanguage.Russian)
-                })
-                add(Choice("English", chosen = saved == ViddaLanguage.English) {
-                    commands.setSystemLanguage(ViddaLanguage.English)
-                })
+                add(
+                    Choice("Русский", chosen = saved == ViddaLanguage.Russian) {
+                        commands.setSystemLanguage(ViddaLanguage.Russian)
+                    },
+                )
+                add(
+                    Choice("English", chosen = saved == ViddaLanguage.English) {
+                        commands.setSystemLanguage(ViddaLanguage.English)
+                    },
+                )
             }
-            if (saved != null) add(Choice(stringResource(R.string.access_system_language_forget)) {
-                commands.setSystemLanguage(null)
-            })
+            if (saved != null) {
+                add(
+                    Choice(stringResource(R.string.access_system_language_forget)) {
+                        commands.setSystemLanguage(null)
+                    },
+                )
+            }
         }
         ChoiceDialog(
             title = title,

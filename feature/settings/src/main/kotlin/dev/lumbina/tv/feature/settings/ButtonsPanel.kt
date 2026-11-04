@@ -125,6 +125,7 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
     )
     // Counts the times the list was set back as it was: its rows go, and the focus starts over.
     var resets by remember { mutableIntStateOf(0) }
+    val serviceOff = current.settings.interceptRemote && !current.serviceOn
     when (val at = stack.last()) {
         ButtonsScreen.Keys -> key(resets) {
             KeysPage(current, way, viewModel::toggleVolumeHold, viewModel::toggleRemote, viewModel::toggleTranslator) {
@@ -134,7 +135,7 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
             }
         }
 
-        ButtonsScreen.Capture -> CapturePage(current.serviceOn || !current.settings.interceptRemote, viewModel::pressed, way) { key ->
+        ButtonsScreen.Capture -> CapturePage(!serviceOff, viewModel::pressed, way) { key ->
             hold()
             stack = stack.dropLast(1) + ButtonsScreen.Key(key)
         }
@@ -167,37 +168,12 @@ private fun KeysPage(
     onToggleTranslator: () -> Unit,
     onReset: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val voiceKey = remember(context) { context.packageManager.getLaunchIntentForPackage("dev.xdark.voicekey") }
     var asking by remember { mutableStateOf(false) }
     // The buttons every remote has: Home, and the mic where Lumbina hears it.
     val own = listOfNotNull(RemoteKey.Home, RemoteKey.Mic.takeIf { state.mic })
     InnerPage(stringResource(R.string.buttons_title), way.back) {
         SettingsList {
-            item(key = "remote-interception") {
-                SwitchRow(
-                    title = stringResource(R.string.buttons_interception),
-                    hint = stringResource(R.string.buttons_interception_hint),
-                    checked = state.settings.interceptRemote,
-                    onClick = onToggleRemote,
-                )
-            }
-            item(key = "system-translation") {
-                SwitchRow(
-                    title = stringResource(R.string.buttons_translator),
-                    hint = stringResource(R.string.buttons_translator_hint),
-                    checked = state.settings.translateSystemScreens,
-                    enabled = state.settings.interceptRemote,
-                    onClick = onToggleTranslator,
-                )
-            }
-            if (voiceKey != null) item(key = "voicekey") {
-                SettingRow(
-                    onClick = { context.startActivity(voiceKey) },
-                    headlineContent = { Text(stringResource(R.string.buttons_voicekey_settings)) },
-                )
-            }
-            if (state.settings.interceptRemote && !state.serviceOn) item(key = "service") { ServiceOff() }
+            compatibilityRows(state, onToggleRemote, onToggleTranslator)
             items(own.size, key = { own[it].id }) { index ->
                 SettingRow(
                     onClick = { way.go(ButtonsScreen.Key(own[index])) },
@@ -217,12 +193,14 @@ private fun KeysPage(
                 )
             }
             item { GroupLine() }
-            if (state.settings.interceptRemote) item(key = "capture") {
-                SettingRow(
-                    onClick = { way.go(ButtonsScreen.Capture) },
-                    headlineContent = { Text(stringResource(R.string.buttons_take)) },
-                    modifier = way.rowOf(ButtonsScreen.Capture),
-                )
+            if (state.settings.interceptRemote) {
+                item(key = "capture") {
+                    SettingRow(
+                        onClick = { way.go(ButtonsScreen.Capture) },
+                        headlineContent = { Text(stringResource(R.string.buttons_take)) },
+                        modifier = way.rowOf(ButtonsScreen.Capture),
+                    )
+                }
             }
             if (state.settings.bindings.isNotEmpty()) {
                 item(key = "reset") {
@@ -248,6 +226,40 @@ private fun KeysPage(
             onDismiss = { asking = false },
         )
     }
+}
+
+private fun LazyListScope.compatibilityRows(
+    state: ButtonsState,
+    onToggleRemote: () -> Unit,
+    onToggleTranslator: () -> Unit,
+) {
+    item(key = "remote-interception") {
+        SwitchRow(
+            title = stringResource(R.string.buttons_interception),
+            hint = stringResource(R.string.buttons_interception_hint),
+            checked = state.settings.interceptRemote,
+            onClick = onToggleRemote,
+        )
+    }
+    item(key = "system-translation") {
+        SwitchRow(
+            title = stringResource(R.string.buttons_translator),
+            hint = stringResource(R.string.buttons_translator_hint),
+            checked = state.settings.translateSystemScreens,
+            enabled = state.settings.interceptRemote,
+            onClick = onToggleTranslator,
+        )
+    }
+    item(key = "voicekey") {
+        val context = LocalContext.current
+        val voiceKey = remember(context) { context.packageManager.getLaunchIntentForPackage("dev.xdark.voicekey") }
+        if (voiceKey == null) return@item
+        SettingRow(
+            onClick = { context.startActivity(voiceKey) },
+            headlineContent = { Text(stringResource(R.string.buttons_voicekey_settings)) },
+        )
+    }
+    if (state.settings.interceptRemote && !state.serviceOn) item(key = "service") { ServiceOff() }
 }
 
 /** Whether a held volume button goes on changing the volume, in a group of its own. */

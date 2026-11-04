@@ -12,10 +12,10 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguageSetting
 import dev.lumbina.tv.core.domain.speech.logText
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
 import dev.lumbina.tv.core.domain.voice.VideoSearchTarget
+import dev.lumbina.tv.core.domain.voice.VoiceCommandParser
 import dev.lumbina.tv.platform.accessibility.VoiceOverlay.Mark
 import java.io.IOException
 import java.util.Locale
-import dev.lumbina.tv.core.domain.voice.VoiceCommandParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
  * for the focused field → visible field → app keyboard → search) and is shown in the overlay.
  * [cycleLanguage] switches Auto / single-language mode. Call from the main thread.
  */
+@Suppress("TooManyFunctions") // Owns the full lifetime and feedback of the voice overlay.
 internal class VoiceController(
     private val scope: CoroutineScope,
     private val sessions: Sessions,
@@ -116,6 +117,7 @@ internal class VoiceController(
     private var latestPressStartedSession = false
 
     /** Listens until [stop], and with an [endpoint] at most until it hears the speech end. */
+    @Suppress("CyclomaticComplexMethod") // Handles active sessions, VIDAA and PCM capture in one lifecycle.
     fun start(endpoint: EndOfSpeech? = null, fromRemote: Boolean = false) {
         if (job?.isActive == true) {
             if (viddaListening) return stop()
@@ -230,6 +232,8 @@ internal class VoiceController(
 
     /** The press was a tap, not speech: drop its result quietly. */
     fun cancel() {
+        // Android reports a short mic press as Tap instead of Up.
+        remoteDownAt = null
         if (viddaListening) return
         held = false
         if (latestPressStartedSession) {

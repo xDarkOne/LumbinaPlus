@@ -19,8 +19,8 @@ import javax.inject.Singleton
 
 /**
  * Logs to logcat and to `Android/data/<pkg>/files/logs/lumbina.log` (readable over adb without
- * root where supported), or internal storage for debug builds with adb run-as. Keeps one rotated file. Writes on a thread of its
- * own, so callers (e.g. the remote's key handling) never wait for the disk; every process
+ * root where supported), or internal storage for debug builds with adb run-as. Keeps one rotated
+ * file. Writes on a thread of its own, so callers never wait for the disk; every process
  * appends under a file lock.
  */
 @Singleton
@@ -30,8 +30,12 @@ internal class FileLumbinaLog @Inject constructor(@ApplicationContext private va
 
     private val file: File? by lazy {
         val debug = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-        if (debug) File(context.filesDir, "lumbina.log") else context.getExternalFilesDir("logs")?.let {
-            File(it, "lumbina.log")
+        if (debug) {
+            File(context.filesDir, "lumbina.log")
+        } else {
+            context.getExternalFilesDir("logs")?.let {
+                File(it, "lumbina.log")
+            }
         }
     }
     private val process: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

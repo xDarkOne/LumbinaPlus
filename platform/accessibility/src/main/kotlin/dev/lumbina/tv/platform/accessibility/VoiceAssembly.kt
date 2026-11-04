@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /** Wires the voice pipeline (mic → recognition → text delivery → overlay) for the service. */
+@Suppress("TooManyFunctions") // Builds each part of the shared voice pipeline.
 internal class VoiceAssembly(
     private val service: AccessibilityService,
     private val engine: SpeechEngine,
@@ -82,9 +83,12 @@ internal class VoiceAssembly(
         searchInApp = ::searchInApp,
     )
 
+    // Providers may throw different RuntimeExceptions across Android TV firmware builds.
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun searchInApp(target: VideoSearchTarget, query: String): VideoSearchResult {
         val opened = when (target) {
             VideoSearchTarget.YouTube -> searches.youTube.search(query)
+
             VideoSearchTarget.VkVideo -> startSearch(
                 Intent(Intent.ACTION_VIEW, Uri.parse("vkvideo://video/search?query=" + Uri.encode(query)))
                     .setPackage("com.vk.tv"),
@@ -109,7 +113,9 @@ internal class VoiceAssembly(
                     throw e
                 } catch (e: RuntimeException) {
                     log.log("voice", "Kinopoisk search unavailable: $e")
-                    if (e is IllegalArgumentException && e.message?.contains("applicationComponent is not initialized") == true) {
+                    val starting = e is IllegalArgumentException &&
+                        e.message?.contains("applicationComponent is not initialized") == true
+                    if (starting) {
                         return VideoSearchResult.Starting
                     }
                     null
@@ -129,6 +135,8 @@ internal class VoiceAssembly(
         return if (opened) VideoSearchResult.Opened else VideoSearchResult.Failed
     }
 
+    // Exact results take priority, then the first title sharing a whole-word prefix.
+    @Suppress("CyclomaticComplexMethod", "LoopWithTooManyJumpStatements")
     private suspend fun kinopoiskTitle(query: String): Intent? = withContext(Dispatchers.IO) {
         val suggestions = Uri.parse("content://ru.kinopoisk.tv.search.kinopoisk.tv/search_suggest_query?limit=10")
         val wanted = comparableTitle(query)
@@ -224,7 +232,9 @@ internal class VoiceAssembly(
             pushToTalk = sessions.pushToTalk(warm, language::languages),
             handsFree = sessions.handsFree(warm, language::languages),
         )
-        return VoiceController(scope, listened, language, utterances(), plate, strings(), log, vidda, ::foregroundSearch) {
+        return VoiceController(
+            scope, listened, language, utterances(), plate, strings(), log, vidda, ::foregroundSearch,
+        ) {
             (warm as? WarmAudioSource)?.stop()
         }
     }

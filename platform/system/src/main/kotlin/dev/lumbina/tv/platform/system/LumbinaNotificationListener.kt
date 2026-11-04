@@ -53,7 +53,10 @@ class LumbinaNotificationListener : NotificationListenerService() {
         lampaVimuHistory = LampaVimuHistory(this, ComponentName(this, javaClass), log).also { it.start() }
         if (!lampaReceiverRegistered) {
             ContextCompat.registerReceiver(
-                this, lampaWindowReceiver, IntentFilter(LampaWatchNext.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,
+                this,
+                lampaWindowReceiver,
+                IntentFilter(LampaWatchNext.ACTION),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
             )
             lampaReceiverRegistered = true
         }
@@ -151,7 +154,13 @@ internal object NotificationStore {
         val opens = notification.contentIntent
         val physicalKeyboard = sbn.packageName == "android" && notification.channelId == "PHYSICAL_KEYBOARD"
         val notice = Notice(
-            sbn.key, sbn.packageName, label(sbn.packageName), title, text, sbn.postTime, opens != null || physicalKeyboard,
+            sbn.key,
+            sbn.packageName,
+            label(sbn.packageName),
+            title,
+            text,
+            sbn.postTime,
+            opens != null || physicalKeyboard,
         )
         return Entry(notice, opens, physicalKeyboard)
     }

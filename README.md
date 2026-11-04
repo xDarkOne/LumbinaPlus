@@ -1,19 +1,30 @@
 # LumbinaPlus
 
-LumbinaPlus is a fork of [Lumbina by Kasavy](https://github.com/Kasavy/lumbina) focused on Hisense/Vidda projectors. It installs alongside Lumbina. For use with [VoiceKey](https://github.com/xDarkOne/voicekey), open the remote button settings and turn off remote button interception. The same page links to VoiceKey settings when VoiceKey is installed.
+LumbinaPlus is a fork of [Lumbina by Kasavy](https://github.com/Kasavy/lumbina) focused on
+Hisense/Vidda projectors. Its Android package is `dev.xdark.lumbinaplus`, so it can be installed
+alongside Lumbina.
 
-## Vidda additions
+## Setup on VIDAA
 
-- “Continue watching” keeps the last partly watched TizenTube video on the device, using media
-  session metadata when notification access is enabled. A matching card published to the TV
-  provider takes priority. When LAMPA opens Vimu, leaving the player without returning to LAMPA
-  can also add a local card. It opens a title search in LAMPA.
-- Voice commands can target the configured YouTube app, VK Video or LAMPA. For example,
-  “найди на ютубе трейлер Дюны” and “найди в лампе Дюну”. VIDAA online recognition uses
-  the installed Vidda Google voice service, with the Vosk option still available.
-- The remote settings include an optional Russian overlay for VIDAA system menus. It runs
-  in the launcher's accessibility service and is off by default.
-- The Access page can set and remember the VIDAA system language on supported projectors.
+1. Choose LumbinaPlus as the home app and enable its accessibility service to use the remote keys.
+2. In **Voice**, use **VIDAA voice setup** to check the voice service and microphone permissions.
+   Installation and permission grants require authorized local debugging. Choose the VIDAA online
+   provider or download a Vosk model for offline recognition.
+3. Give LumbinaPlus notification access to use media sessions for **Continue watching**.
+4. If you are keeping [VoiceKey](https://github.com/xDarkOne/voicekey) active, turn off
+   **Intercept remote buttons** in LumbinaPlus to avoid both services handling the microphone.
+
+## VIDAA features
+
+- Tap the microphone to give a command or search. Hold it to search in the supported app on
+  screen. You can also name the app in the command, for example
+  “открой на Кинопоиске Любовь и голуби” or “найди на Рутубе обзор проектора”.
+- **Continue watching** uses local media-session data for TizenTube and LAMPA films in Vimu.
+  TizenTube cards open the video when an ID is available, or bring TizenTube back to the front
+  when it isn't. Vimu posters are shown when the player supplies them.
+- **Remote buttons** includes an optional Russian overlay for VIDAA menus. It uses the launcher's
+  accessibility service and is off by default.
+- **Access** can set and remember the VIDAA system language on supported projectors.
 
 ## About the original launcher
 

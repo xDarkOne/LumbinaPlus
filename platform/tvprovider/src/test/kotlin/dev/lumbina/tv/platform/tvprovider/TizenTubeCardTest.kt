@@ -7,7 +7,13 @@ import org.junit.Test
 
 class TizenTubeCardTest {
     private val fallback = ProgramCard(
-        TizenTubeWatchNext.CARD_ID, TizenTubeWatchNext.PACKAGE, "Video", null, null, null, null,
+        TizenTubeWatchNext.CARD_ID,
+        TizenTubeWatchNext.PACKAGE,
+        "Video",
+        null,
+        null,
+        null,
+        null,
     )
 
     @Test
@@ -20,7 +26,10 @@ class TizenTubeCardTest {
     fun `different videos and unrelated apps remain visible`() {
         val other = fallback.copy(id = 2, packageName = "tv.other")
         val anotherVideo = fallback.copy(id = 3, title = "Other")
-        assertEquals(listOf(fallback, other, anotherVideo), mergeTizenTubeCard(listOf(other to 2L, anotherVideo to 1L), fallback to 3L))
+        assertEquals(
+            listOf(fallback, other, anotherVideo),
+            mergeTizenTubeCard(listOf(other to 2L, anotherVideo to 1L), fallback to 3L),
+        )
     }
 
     @Test

@@ -12,14 +12,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Searches the official RUTUBE TV app using its own keyboard. */
-internal class RutubeSearch(
-    private val service: AccessibilityService,
-    private val onOpenSearch: () -> Unit,
-) {
+internal class RutubeSearch(private val service: AccessibilityService, private val onOpenSearch: () -> Unit) {
     private var packageName: String = ""
     private var enteredApp = false
 
-    suspend fun search(query: String): Boolean = withTimeoutOrNull(60_000L) {
+    // Launching, waiting for the keyboard, and allowing manual navigation are distinct states.
+    @Suppress("CyclomaticComplexMethod")
+    suspend fun search(query: String): Boolean = withTimeoutOrNull(SEARCH_TIMEOUT_MILLIS) {
         val launch = PACKAGES.firstNotNullOfOrNull { pkg ->
             service.packageManager.getLeanbackLaunchIntentForPackage(pkg)
                 ?: service.packageManager.getLaunchIntentForPackage(pkg)
@@ -43,16 +42,16 @@ internal class RutubeSearch(
                 return@withTimeoutOrNull false
             }
 
-            if (!waitFor(25_000) { keyboard() != null || sidebar() != null }) return@withTimeoutOrNull false
+            if (!waitFor(APP_TIMEOUT_MILLIS) { keyboard() != null || sidebar() != null }) return@withTimeoutOrNull false
             if (keyboard() == null) {
                 openSearch()
-                waitFor(1_000) { keyboard() != null }
+                waitFor(SEARCH_OPEN_MILLIS) { keyboard() != null }
             }
             if (keyboard() == null) {
                 if (!isRutubeActive()) return@withTimeoutOrNull false
                 onOpenSearch()
-                if (!waitFor(30_000) { keyboard() != null }) return@withTimeoutOrNull false
-                delay(300)
+                if (!waitFor(MANUAL_SEARCH_MILLIS) { keyboard() != null }) return@withTimeoutOrNull false
+                delay(SEARCH_SETTLE_MILLIS)
             }
 
             // Clear any existing query. If the key is absent, entering text could silently append to it.
@@ -70,6 +69,8 @@ internal class RutubeSearch(
         }
     } ?: false
 
+    // Each early return is an unavailable keyboard or failed click; typing must stop immediately.
+    @Suppress("ReturnCount")
     private suspend fun typeCharacter(character: Char): Boolean {
         if (character == ' ') {
             if (key("й") == null && key("q") == null && !press("Рус")) return false
@@ -98,7 +99,7 @@ internal class RutubeSearch(
     private suspend fun click(node: AccessibilityNodeInfo): Boolean {
         if (!isRutubeActive()) return false
         val success = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        delay(70)
+        delay(KEY_DELAY_MILLIS)
         return success
     }
 
@@ -125,7 +126,8 @@ internal class RutubeSearch(
             val node = pending.removeFirst()
             val bounds = Rect()
             node.getBoundsInScreen(bounds)
-            if (node.isFocusable && bounds.width() in 1..199 && bounds.left < 128 && bounds.top < topY) {
+            val inSidebar = bounds.width() in 1..MAX_SIDEBAR_WIDTH && bounds.left < MAX_SIDEBAR_LEFT
+            if (node.isFocusable && inSidebar && bounds.top < topY) {
                 top = node
                 topY = bounds.top
             }
@@ -151,14 +153,27 @@ internal class RutubeSearch(
     private suspend fun waitFor(millis: Long, condition: () -> Boolean): Boolean {
         val deadline = SystemClock.elapsedRealtime() + millis
         while (SystemClock.elapsedRealtime() < deadline) {
-            if (isRutubeActive()) enteredApp = true else if (enteredApp) return false
+            if (isRutubeActive()) {
+                enteredApp = true
+            } else if (enteredApp) {
+                return false
+            }
             if (condition()) return true
-            delay(200)
+            delay(POLL_MILLIS)
         }
         return condition()
     }
 
     private companion object {
         val PACKAGES = listOf("ru.rutube.app.tv", "ru.rutube.app")
+        const val SEARCH_TIMEOUT_MILLIS = 60_000L
+        const val APP_TIMEOUT_MILLIS = 25_000L
+        const val SEARCH_OPEN_MILLIS = 1_000L
+        const val MANUAL_SEARCH_MILLIS = 30_000L
+        const val SEARCH_SETTLE_MILLIS = 300L
+        const val KEY_DELAY_MILLIS = 70L
+        const val POLL_MILLIS = 200L
+        const val MAX_SIDEBAR_WIDTH = 199
+        const val MAX_SIDEBAR_LEFT = 128
     }
 }

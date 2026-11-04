@@ -14,7 +14,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Futuba accepts ACTION_SEARCH at launch. Its Compose field needs an explicit update when already open. */
 internal class FutubaSearch(private val service: AccessibilityService) {
-    suspend fun search(query: String): Boolean = withTimeoutOrNull(20_000L) {
+    // The states correspond to Futuba's launch, search field, and on-screen keyboard.
+    @Suppress("CyclomaticComplexMethod")
+    suspend fun search(query: String): Boolean = withTimeoutOrNull(SEARCH_TIMEOUT_MILLIS) {
         val running = root() != null
         val intent = Intent(Intent.ACTION_SEARCH)
             .setComponent(ComponentName(PACKAGE, "$PACKAGE.MainActivity"))
@@ -35,7 +37,8 @@ internal class FutubaSearch(private val service: AccessibilityService) {
             if (root != null) {
                 seen = true
                 field = find(root) { it.isEditable && it.isVisibleToUser }
-                if (field == null && !clicked && (running || SystemClock.elapsedRealtime() - started >= 3_000)) {
+                val shouldOpenSearch = running || SystemClock.elapsedRealtime() - started >= SEARCH_OPEN_DELAY_MILLIS
+                if (field == null && !clicked && shouldOpenSearch) {
                     val label = find(root) {
                         it.isVisibleToUser && it.contentDescription?.toString() in setOf("Поиск", "Search")
                     }
@@ -43,16 +46,16 @@ internal class FutubaSearch(private val service: AccessibilityService) {
                     clicked = button?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                 }
             }
-            if (field == null) delay(200)
+            if (field == null) delay(POLL_MILLIS)
         }
         if (field.text?.toString() != query) {
             val arguments = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query)
             }
             if (!field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) return@withTimeoutOrNull false
-            delay(200)
+            delay(POLL_MILLIS)
         }
-        if (Build.VERSION.SDK_INT >= 30) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             root()?.let { find(it) { node -> node.isEditable && node.isVisibleToUser } }
                 ?.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
         }
@@ -74,5 +77,8 @@ internal class FutubaSearch(private val service: AccessibilityService) {
 
     private companion object {
         const val PACKAGE = "me.pnsrc.futuba"
+        const val SEARCH_TIMEOUT_MILLIS = 20_000L
+        const val SEARCH_OPEN_DELAY_MILLIS = 3_000L
+        const val POLL_MILLIS = 200L
     }
 }

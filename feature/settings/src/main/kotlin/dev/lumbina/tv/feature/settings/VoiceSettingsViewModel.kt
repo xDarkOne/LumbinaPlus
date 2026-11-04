@@ -78,7 +78,12 @@ class VoiceSettingsViewModel @Inject constructor(
     val recognizer: StateFlow<Recognizer?> =
         // Asked again when apps change: the one that recognizes may be installed or removed meanwhile.
         combine(voiceSettings.settings, speechKeys.providers, installedApps.observe(), viddaState, viddaBusy) {
-            settings, withKey, _, setup, busy ->
+                settings,
+                withKey,
+                _,
+                setup,
+                busy,
+            ->
             Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull(), viddaSupported, setup, busy)
         }
             .stateIn(viewModelScope, WhileUiSubscribed, null)

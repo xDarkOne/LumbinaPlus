@@ -63,6 +63,7 @@ import kotlinx.coroutines.launch
  * in bursts (a channel, then ten programs), hence the debounce before re-reading.
  */
 @Singleton
+@Suppress("TooManyFunctions") // Channel and watch-next readers share provider discovery and observation.
 internal class AndroidTvChannels @Inject constructor(
     @ApplicationContext private val context: Context,
     private val log: LumbinaLog,
@@ -155,7 +156,9 @@ internal class AndroidTvChannels @Inject constructor(
                 progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
             ) to prefs.getLong(LampaWatchNext.UPDATED, 0)
         }
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(readCard()) }
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            trySend(readCard())
+        }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         trySend(readCard())
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -185,7 +188,9 @@ internal class AndroidTvChannels @Inject constructor(
                 progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
             ) to prefs.getLong(LocalCard.UPDATED, 0)
         }
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(readCard()) }
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            trySend(readCard())
+        }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         trySend(readCard())
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -311,8 +316,12 @@ internal class AndroidProgramLauncher @Inject constructor(
                 session.playbackState?.state in setOf(PlaybackState.STATE_PLAYING, PlaybackState.STATE_PAUSED) &&
                 session.metadata?.description?.title?.toString()?.trim() == card.title.trim()
         }
-        return if (sameVideo) context.packageManager.getLeanbackLaunchIntentForPackage(card.packageName)
-            ?: context.packageManager.getLaunchIntentForPackage(card.packageName) else null
+        return if (sameVideo) {
+            context.packageManager.getLeanbackLaunchIntentForPackage(card.packageName)
+                ?: context.packageManager.getLaunchIntentForPackage(card.packageName)
+        } else {
+            null
+        }
     }
 
     private fun parse(uri: String): Intent? = try {

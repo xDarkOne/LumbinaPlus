@@ -75,6 +75,8 @@ internal class VoiceAnswers(
 }
 
 /** What to show after the utterance was handled; null keeps the recognized text on screen. */
+// Each outcome has its own user-facing response, including those with no spoken feedback.
+@Suppress("CyclomaticComplexMethod")
 private fun VoiceController.Strings.feedback(outcome: UtteranceOutcome): String? = when (outcome) {
     is UtteranceOutcome.Typed, is UtteranceOutcome.Done, is UtteranceOutcome.Ambiguous -> null
     is UtteranceOutcome.NotDelivered -> noField(outcome.text)

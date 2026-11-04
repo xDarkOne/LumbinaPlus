@@ -88,8 +88,10 @@ class HandleUtteranceTest {
         })
         assertEquals(UtteranceOutcome.Searched("Дюна"), handler("Дюна", VideoSearchTarget.Lampa))
         assertEquals(UtteranceOutcome.Searched("домой"), handler("домой", VideoSearchTarget.Lampa, forceSearch = true))
-        assertEquals(listOf(VideoSearchTarget.Lampa to "дюна", VideoSearchTarget.Lampa to "домой"),
-            routed.map { (target, title) -> target to title.lowercase() })
+        assertEquals(
+            listOf(VideoSearchTarget.Lampa to "дюна", VideoSearchTarget.Lampa to "домой"),
+            routed.map { (target, title) -> target to title.lowercase() },
+        )
     }
 
     @Test

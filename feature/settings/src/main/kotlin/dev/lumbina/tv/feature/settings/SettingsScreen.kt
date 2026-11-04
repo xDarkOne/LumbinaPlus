@@ -127,7 +127,9 @@ class SettingsPagesViewModel @Inject constructor(
     suspend fun problems(): Map<SettingsPage, Int> = withContext(Dispatchers.IO) {
         buildMap {
             if (listings.missing() != null) put(SettingsPage.Channels, R.string.root_channels_access)
-            if (remote.settings.first().interceptRemote && !service.isServiceBound()) put(SettingsPage.HomeKey, R.string.root_service_off)
+            if (remote.settings.first().interceptRemote && !service.isServiceBound()) {
+                put(SettingsPage.HomeKey, R.string.root_service_off)
+            }
         }
     }
 }
