@@ -4,9 +4,11 @@ import android.util.Log
 import androidx.datastore.core.DataStore
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
 import java.io.IOException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.retryWhen
 
 /**
  * Settings kept in [store] in their on-disk form [S], seen as [D] through [toDomain] and [toStored].
@@ -20,8 +22,17 @@ internal class DataStoreSettings<S, D>(
     rewriteOnRead: Boolean = false,
 ) : SettingsRepository<D> {
 
+    /** A read that fails (a busy disk while the device wakes) is tried again before giving up. */
     override val settings: Flow<D> = store.data
         .onStart { if (rewriteOnRead) update { it } }
+        .retryWhen { error, attempt ->
+            (error is IOException && attempt < READ_RETRIES).also {
+                if (it) {
+                    Log.w(TAG, "Settings not read, trying again", error)
+                    delay(READ_RETRY_MILLIS)
+                }
+            }
+        }
         .map { toDomain(it) }
 
     /**
@@ -38,5 +49,7 @@ internal class DataStoreSettings<S, D>(
 
     private companion object {
         const val TAG = "Settings"
+        const val READ_RETRIES = 3L
+        const val READ_RETRY_MILLIS = 500L
     }
 }

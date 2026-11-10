@@ -6,4 +6,7 @@ package dev.lumbina.tv.core.common
  */
 fun interface LumbinaLog {
     fun log(tag: String, message: String)
+
+    /** As [log], but written before returning: for a process about to die. */
+    fun logNow(tag: String, message: String) = log(tag, message)
 }

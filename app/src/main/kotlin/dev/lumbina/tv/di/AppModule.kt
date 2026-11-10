@@ -27,6 +27,7 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.HealLock
 import dev.lumbina.tv.core.domain.health.SecureSettings
+import dev.lumbina.tv.core.domain.health.StockLauncherGuard
 import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.speech.CloudSpeechEngine
 import dev.lumbina.tv.core.domain.speech.DeviceSpeech
@@ -104,6 +105,21 @@ object AppModule {
         cloud: Map<SpeechProvider, @JvmSuppressWildcards CloudSpeechEngine>,
         app: SpeechAppEngine,
     ): SpeechEngineChoice = SpeechEngineChoice(device, cloud, app)
+
+    @Provides
+    fun stockLauncherGuard(
+        packages: PackageStates,
+        adb: LocalAdb,
+        remote: RemoteSettingsRepository,
+        @ApplicationContext context: Context,
+    ): StockLauncherGuard = StockLauncherGuard(
+        packages,
+        adb,
+        ourHome = {
+            context.packageManager.getLaunchIntentForPackage(context.packageName)?.component?.flattenToString()
+        },
+        interceptRemote = { remote.settings.first().interceptRemote },
+    )
 
     @Provides
     fun healAccessibilityService(

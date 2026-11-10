@@ -7,12 +7,14 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 
 /**
  * Lumbina's always-running part: takes over the remote's Home and mic buttons from the firmware
@@ -30,7 +32,13 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     @Inject lateinit var remote: RemoteSettingsRepository
 
-    private val scope = MainScope()
+    /**
+     * A failure in one feature is logged and the rest go on: a crash of this process leaves the
+     * service among the system's "crashed services", the remote's keys then go to the firmware.
+     */
+    private val scope = MainScope() + CoroutineExceptionHandler { _, error ->
+        log.log(TAG, "feature failed: ${error.stackTraceToString().take(ERROR_TEXT)}")
+    }
     private var remoteSettingsJob: Job? = null
     private var features: RemoteFeatures? = null
     private val lampaWindowWatcher by lazy { LampaWindowWatcher(this, log) }
@@ -39,6 +47,13 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private var translatorEventsEnabled = false
 
     override fun onServiceConnected() {
+        // Bound twice (a heal toggling the service while it was still coming up), each instance
+        // would act on every key. The newest connection is the one the system keeps: it takes over.
+        current?.takeIf { it !== this }?.let {
+            log.log(TAG, "another instance was still connected; it stops")
+            it.retire()
+        }
+        current = this
         remoteSettingsJob?.cancel()
         remoteSettingsJob = scope.launch {
             remote.settings
@@ -79,9 +94,20 @@ class LumbinaAccessibilityService : AccessibilityService() {
         translator?.setEnabled(enabled)
     }
 
-    override fun onKeyEvent(event: KeyEvent): Boolean = features?.onKey(event) ?: false
+    /** Stops acting for good, leaving keys and events to the instance connected after this one. */
+    private fun retire() {
+        remoteSettingsJob?.cancel()
+        translator?.stop()
+        translator = null
+        runCatching { features?.stop() }.onFailure { log.log(TAG, "stopping the earlier instance: $it") }
+        features = null
+        runCatching { filterKeys(false) }
+    }
+
+    override fun onKeyEvent(event: KeyEvent): Boolean = if (current === this) features?.onKey(event) ?: false else false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (current !== this) return
         features?.onAccessibilityEvent(event)
         lampaWindowWatcher.onEvent(event)
         translator?.onEvent(event)
@@ -91,14 +117,20 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         log.log(TAG, "destroyed")
+        if (current === this) current = null
         translator?.stop()
-        features?.stop()
+        // A start cut short leaves parts not registered; unregistering them must not crash the process.
+        runCatching { features?.stop() }.onFailure { log.log(TAG, "stop: $it") }
         scope.cancel()
         super.onDestroy()
     }
 
     private companion object {
         const val TAG = "a11y"
+        const val ERROR_TEXT = 2_000
+
+        /** The instance acting on the remote in this process; touched on the main thread only. */
+        var current: LumbinaAccessibilityService? = null
         const val TRANSLATOR_EVENTS = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
             AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_VIEW_SCROLLED or
             AccessibilityEvent.TYPE_VIEW_FOCUSED or AccessibilityEvent.TYPE_VIEW_SELECTED

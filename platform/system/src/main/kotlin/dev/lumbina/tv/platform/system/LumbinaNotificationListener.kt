@@ -50,6 +50,8 @@ class LumbinaNotificationListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         NotificationStore.connected(this)
+        // Connected again after boot or wake: the remote's service may have been left unbound meanwhile.
+        runCatching { HealJob.scheduleQuickCheck(this) }
         tizenTubeHistory?.stop()
         tizenTubeHistory = TizenTubeHistory(this, ComponentName(this, javaClass), log, adb).also { it.start() }
         lampaVimuHistory?.stop()

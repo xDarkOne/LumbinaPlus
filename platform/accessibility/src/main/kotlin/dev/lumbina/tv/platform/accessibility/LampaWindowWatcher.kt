@@ -13,6 +13,13 @@ internal class LampaWindowWatcher(private val service: AccessibilityService, pri
     private var fromLampa = false
 
     fun beforeHome() {
+        // Called on the Home key's way: asking the windows is a call into the app in front, slow
+        // while a player is busy, and a key held up too long goes to the firmware as well.
+        if (lastApp == Watch.VIMU) {
+            log.log("lampa-history", "Home: last=$lastApp player=true")
+            report(Watch.HOME_FROM_PLAYER)
+            return
+        }
         val foreground = service.rootInActiveWindow?.packageName?.toString()
         val active = service.windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
             ?.root?.packageName?.toString()

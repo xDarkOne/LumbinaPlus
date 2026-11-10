@@ -11,6 +11,7 @@
 
     <queries>
         <package android:name="dev.xdark.voicekey" />
+        <package android:name="com.oversea.aslauncher" />
     </queries>
 
     <!-- Process names come from the build: processNames in build-logic. -->

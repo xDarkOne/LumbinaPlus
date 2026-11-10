@@ -14,6 +14,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,6 +55,16 @@ internal class FileLumbinaLog @Inject constructor(@ApplicationContext private va
         writer.execute { append("${format.format(Date(at))} [$process] $tag: $message\n") }
     }
 
+    /** Waits a moment for this line and every one queued before it to reach the file. */
+    override fun logNow(tag: String, message: String) {
+        Log.e("Lumbina/$tag", message)
+        val at = System.currentTimeMillis()
+        runCatching {
+            writer.submit { append("${format.format(Date(at))} [$process] $tag: $message\n") }
+                .get(FLUSH_MILLIS, TimeUnit.MILLISECONDS)
+        }
+    }
+
     private fun append(line: String) {
         val target = file ?: return
         runCatching {
@@ -79,5 +90,6 @@ internal class FileLumbinaLog @Inject constructor(@ApplicationContext private va
 
     private companion object {
         const val MAX_BYTES = 512 * 1024L
+        const val FLUSH_MILLIS = 1_000L
     }
 }
