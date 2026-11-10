@@ -12,10 +12,25 @@ internal data class StoredAccessSettings(
     val micApps: Map<String, Boolean> = emptyMap(),
     val setupReopened: Boolean = false,
     val systemLanguage: ViddaLanguage? = null,
+    val debuggingOffDismissed: Boolean = false,
 )
 
-internal fun StoredAccessSettings.toDomain() =
-    AccessSettings(closeFromRecents, openOnPowerOn, setupCardHidden, micApps, setupReopened, systemLanguage)
+internal fun StoredAccessSettings.toDomain() = AccessSettings(
+    closeFromRecents,
+    openOnPowerOn,
+    setupCardHidden,
+    micApps,
+    setupReopened,
+    systemLanguage,
+    debuggingOffDismissed,
+)
 
-internal fun AccessSettings.toStored() =
-    StoredAccessSettings(closeFromRecents, openOnPowerOn, setupCardHidden, micApps, setupReopened, systemLanguage)
+internal fun AccessSettings.toStored() = StoredAccessSettings(
+    closeFromRecents,
+    openOnPowerOn,
+    setupCardHidden,
+    micApps,
+    setupReopened,
+    systemLanguage,
+    debuggingOffDismissed,
+)

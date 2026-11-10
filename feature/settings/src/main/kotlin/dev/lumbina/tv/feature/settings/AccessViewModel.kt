@@ -79,8 +79,11 @@ class AccessViewModel @Inject constructor(
 ) : ViewModel(),
     AccessCommands {
 
-    /** What the consent says the service does here. */
-    val serviceScope = profile.serviceScope()
+    /** What the consent says the service does: connecting here sets Lumbina up over debugging. */
+    val serviceScope = profile.serviceScope().copy(localAdb = true)
+
+    /** For a device whose debugging lets only a computer in. */
+    val computerCommands: List<String> get() = access.computerCommands
 
     val canSetSystemLanguage: Boolean get() = systemLanguage.supported
 

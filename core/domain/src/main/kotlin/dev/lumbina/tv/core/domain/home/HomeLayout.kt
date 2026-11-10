@@ -2,7 +2,9 @@ package dev.lumbina.tv.core.domain.home
 
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.device.InputPresence
 import dev.lumbina.tv.core.domain.device.InputSource
+import dev.lumbina.tv.core.domain.device.inputCaption
 import java.text.Collator
 import java.util.Locale
 import kotlinx.coroutines.flow.Flow
@@ -33,9 +35,20 @@ sealed interface HomeItem {
      * each input once, as [AllApps]; one the device lacks is not shown.
      */
     data class Input(val id: String) : HomeItem {
-        override val key: String get() = "input:$id"
+        override val key: String get() = INPUT_KEY_PREFIX + id
     }
 }
+
+private const val INPUT_KEY_PREFIX = "input:"
+
+/**
+ * Whether a key of the user's banners ([HomeAppearance.customBanners]) is a tile of Lumbina's own
+ * ("All apps", an input's: their [HomeItem.key]) rather than an app's ([dev.lumbina.tv.core.domain.app.AppId.flatten]).
+ */
+fun isOwnTileKey(key: String): Boolean = key == HomeItem.AllApps.key || isInputKey(key)
+
+/** Whether a banner key is an input's tile, whichever input. */
+fun isInputKey(key: String): Boolean = key.startsWith(INPUT_KEY_PREFIX)
 
 /**
  * How a section lays its tiles out: a [Row] that scrolls sideways or a [Grid] of several lines.
@@ -285,7 +298,8 @@ data class HomeLayout(
 
         HomeItem.AllApps -> TileContent.AllAppsTile
 
-        is HomeItem.Input -> inputs.firstOrNull { it.id == id }?.let { TileContent.InputTile(id, nameOf(it), key) }
+        is HomeItem.Input -> inputs.firstOrNull { it.id == id }
+            ?.let { TileContent.InputTile(id, nameOf(it), key, it.presence) }
     }
 
     /** [input]'s name on screen: the user's, else the firmware's. */
@@ -342,8 +356,16 @@ sealed interface TileContent {
         override val key: String = HomeItem.AllApps.key
     }
 
-    /** A video input, under [name] (the user's or the firmware's). */
-    data class InputTile(val id: String, val name: String, override val key: String) : TileContent
+    /** A video input, under [name] (the user's or the firmware's); [presence] is what is on it now, where told. */
+    data class InputTile(
+        val id: String,
+        val name: String,
+        override val key: String,
+        val presence: InputPresence? = null,
+    ) : TileContent {
+        /** [name] with the working device's: what the tile says. */
+        val caption: String get() = inputCaption(name, presence)
+    }
 }
 
 /** Persisted [HomeLayout]. */

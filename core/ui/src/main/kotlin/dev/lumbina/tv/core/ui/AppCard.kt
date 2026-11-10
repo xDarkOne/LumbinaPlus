@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,21 +76,20 @@ fun AppCard(
     val under = name.under || caption != null
     val label = if (named || caption == null) app.label else caption
     Tile(label = label.takeIf { under }, modifier = modifier, shown = named || caption != null, dim = !named) {
+        // No fill of the card's own: the artwork covers the tile, and a fill under it shows round
+        // a dark banner as a light rim while the tile grows or shrinks. Artwork brings a fill where
+        // it needs one: not there yet, see-through, or a banner of the user's still loading.
         TileCard(
             onClick = onClick,
             onLongClick = onLongClick,
             highlighted = highlighted,
+            containerColor = Color.Transparent,
             modifier = Modifier
                 .aspectRatio(BANNER_ASPECT)
                 .onFocusChanged { focused = it.isFocused },
         ) {
             if (banner != null) {
-                AsyncImage(
-                    model = banner,
-                    contentDescription = app.label,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                UserBanner(banner, app.label)
                 if (named && !under) NameOnTile(app.label)
             } else {
                 AppArtwork(app, named = named && !under)
@@ -238,3 +238,17 @@ private const val MORE_ALPHA = 0.3f
 /** The shade under a name on a tile: how much of the tile's height, and how dark at its bottom. */
 private const val SHADE_HEIGHT = 0.5f
 private const val SHADE_ALPHA = 0.75f
+
+/** The user's own [banner] filling a tile; the tiles' ground while it loads, or where it can't be read. */
+@Composable
+fun UserBanner(banner: String, label: String, modifier: Modifier = Modifier) {
+    val fill = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
+    AsyncImage(
+        model = banner,
+        contentDescription = label,
+        placeholder = fill,
+        error = fill,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.fillMaxSize(),
+    )
+}

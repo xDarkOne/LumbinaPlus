@@ -42,7 +42,10 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.domain.device.InputPresence
 import dev.lumbina.tv.core.domain.device.InputSource
+import dev.lumbina.tv.core.domain.device.byPresence
+import dev.lumbina.tv.core.domain.device.deviceNote
 import dev.lumbina.tv.core.domain.home.BarPlace
 import dev.lumbina.tv.core.domain.sleep.SLEEP_TIMER_MINUTES
 import dev.lumbina.tv.core.domain.status.problem
@@ -65,7 +68,8 @@ import kotlinx.coroutines.launch
 fun HomeTopBarRoute(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    plates: @Composable () -> Unit = {},
+    /** The caller's plates; the modifier registers them with home's focus, so Back to home finds them. */
+    plates: @Composable (Modifier) -> Unit = {},
     viewModel: TopBarViewModel = hiltViewModel(),
     statusViewModel: StatusViewModel = hiltViewModel(),
     homeViewModel: HomeViewModel = hiltViewModel(),
@@ -91,11 +95,13 @@ fun HomeTopBarRoute(
         onSystemSearch = { if (!viewModel.openSystemSearch()) homeViewModel.say(Failed.SystemSearch) },
         onInput = { input -> viewModel.openInput(input) { homeViewModel.say(Failed.Input(input.name)) } },
         modifier = modifier,
-        leading = { NowPlayingRoute() },
+        // Registered with home's focus, as the capsule's buttons are: back on home, the focus returns
+        // to "now playing" (its first button, whichever was pressed).
+        leading = { Box(Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "playing"))) { NowPlayingRoute() } },
         plates = {
             NetworkPlate(status.network?.problem(), statusViewModel::openNetwork)
             // What the caller adds stands nearest the capsule.
-            plates()
+            plates(Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "plates")))
         },
         status = {
             if (state.look.notices) {
@@ -366,12 +372,29 @@ private fun TopBarActions(
     }
 }
 
-/** The inputs button's list: OK on one switches to it. */
+/**
+ * The inputs button's list: OK on one switches to it. Where the device tells what is on them, the
+ * working ones come first with the name their device sends, then those with a cable in, the empty
+ * ones last and paler (they can still be chosen). The order is the one at opening: an input that
+ * wakes up meanwhile changes its note, not its place, so the focus stays on the input it was on.
+ */
 @Composable
 private fun InputsDialog(inputs: List<InputSource>, onInput: (InputSource) -> Unit, onDismiss: () -> Unit) {
+    val connected = stringResource(R.string.input_connected)
+    val order = remember { inputs.byPresence().map { it.id } }
+    val shown = inputs.sortedBy { input -> order.indexOf(input.id).takeIf { it >= 0 } ?: order.size }
     ChoiceDialog(
         title = stringResource(R.string.home_inputs),
-        choices = inputs.map { input -> Choice(input.name) { onInput(input) } },
+        choices = shown.map { input ->
+            val note = if (input.presence ==
+                InputPresence.Connected
+            ) {
+                connected
+            } else {
+                deviceNote(input.name, input.presence)
+            }
+            Choice(input.name, note = note, faded = input.presence == InputPresence.Empty) { onInput(input) }
+        },
         onDismiss = onDismiss,
     )
 }

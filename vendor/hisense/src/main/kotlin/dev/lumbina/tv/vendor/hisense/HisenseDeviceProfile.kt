@@ -70,6 +70,9 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume, his
     /** "USB debugging" also opens adb on port 5555 of the network. */
     override val localAdb = true
 
+    /** The firmware hides the accessibility settings and drops the service: the setup connects instead. */
+    override val setupOverAdb = true
+
     override val languageFirst = true
 
     override val firmwareParts = listOf(
@@ -79,7 +82,7 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume, his
         FirmwarePart(HisenseVolume.PACKAGE, FirmwarePart.Feature.Volume),
     )
 
-    override val diagnostics: DeviceDiagnostics = HisenseDiagnostics()
+    override val diagnostics: DeviceDiagnostics = HisenseDiagnostics(hisenseInputs)
 
     override fun matches(device: DeviceFingerprint): Boolean = device.isInstalled(STOCK_LAUNCHER_PACKAGE)
 

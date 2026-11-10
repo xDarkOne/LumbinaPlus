@@ -1,9 +1,17 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
+import android.os.Build
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
+import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import javax.inject.Inject
@@ -45,6 +53,40 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private var translator: Translator? = null
     private var translatorExtraEvents = 0
     private var translatorEventsEnabled = false
+
+    /** One answer per press, however many times the system hands it over. */
+    private val echo = KeyEcho(
+        onEcho = { log.log(TAG, "key ${it.keyCode} came twice: the service may be bound twice") },
+    )
+
+    /**
+     * Lumbina's own language chosen meanwhile (before Android 13): put on the service's resources,
+     * where the overlays read their words as they show (the voice's as it speaks).
+     */
+    private val languageChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            applyOwnLanguage()
+            log.log(TAG, "language changed")
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val filter = IntentFilter(LumbinaActions.LANGUAGE_CHANGED)
+            ContextCompat.registerReceiver(this, languageChanged, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    /** The system rebuilds resources on a change (a remote, a screen mode) with the language the service started in. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOwnLanguage()
+    }
 
     override fun onServiceConnected() {
         // Bound twice (a heal toggling the service while it was still coming up), each instance
@@ -104,7 +146,8 @@ class LumbinaAccessibilityService : AccessibilityService() {
         runCatching { filterKeys(false) }
     }
 
-    override fun onKeyEvent(event: KeyEvent): Boolean = if (current === this) features?.onKey(event) ?: false else false
+    override fun onKeyEvent(event: KeyEvent): Boolean =
+        current === this && echo.answer(KeyStamp.of(event)) { features?.onKey(event) ?: false }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (current !== this) return
@@ -119,6 +162,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
         log.log(TAG, "destroyed")
         if (current === this) current = null
         translator?.stop()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) runCatching { unregisterReceiver(languageChanged) }
         // A start cut short leaves parts not registered; unregistering them must not crash the process.
         runCatching { features?.stop() }.onFailure { log.log(TAG, "stop: $it") }
         scope.cancel()
