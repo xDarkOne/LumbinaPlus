@@ -18,10 +18,7 @@ import javax.inject.Inject
 /**
  * Saves reports to the shared Download folder (no permission needed on Android 10+), where a
  * file manager or adb can reach them; older Android gets the app's external files folder.
- *
- * TODO(before publishing): the report carries the log's tail, and the log holds links opened from
- *  the phone, uploaded file names and recognized phrases. Log their kind and length instead, or
- *  leave them out of the report, before builds go to other people.
+ * The log's tail in a report has recognized phrases and links cut down (see `privateLogLine`).
  */
 internal class AndroidReportExporter @Inject constructor(
     @ApplicationContext private val context: Context,

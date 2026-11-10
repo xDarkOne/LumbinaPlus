@@ -176,7 +176,7 @@ data class DiagnosticsSnapshot(
         }
         appendLine()
         appendLine("Recent log:")
-        log.forEach(::appendLine)
+        log.forEach { appendLine(privateLogLine(it)) }
     }
 
     private fun StringBuilder.device() {

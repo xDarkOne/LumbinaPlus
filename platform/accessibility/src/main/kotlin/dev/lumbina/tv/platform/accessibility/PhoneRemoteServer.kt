@@ -78,6 +78,8 @@ internal class PhoneRemoteServer(
     private val keyBytes = key.toByteArray()
     private val connections = Semaphore(MAX_CONNECTIONS)
     private val perAddress = mutableMapOf<InetAddress, Int>()
+    private val guesses =
+        KeyGuesses(onLimit = { log.log(TAG, "${it.hostAddress}: too many wrong keys, not answered for a while") })
 
     @Volatile private var socket: ServerSocket? = null
     private var job: Job? = null
@@ -179,11 +181,15 @@ internal class PhoneRemoteServer(
                 respond(output, STATUS_OK, "text/html; charset=utf-8", page())
             }
 
-            request.method == "GET" && request.path == PhoneRemoteSettings.REPORT_PATH -> giveReport(output, request)
+            request.method == "GET" && request.path == PhoneRemoteSettings.REPORT_PATH -> giveReport(
+                output,
+                request,
+                client.inetAddress,
+            )
 
             request.command == null -> respond(output, STATUS_NOT_FOUND, "text/plain", "not found".toByteArray())
 
-            !MessageDigest.isEqual(request.headers["x-key"]?.toByteArray(), keyBytes) ->
+            !accepted(client.inetAddress, request.headers["x-key"]) ->
                 respond(output, STATUS_FORBIDDEN, JSON, """{"ok":false,"error":"key"}""".toByteArray())
 
             request.command == "info" -> respond(output, STATUS_OK, JSON, info().toByteArray())
@@ -213,10 +219,16 @@ internal class PhoneRemoteServer(
         }
     }
 
+    /** Whether [key] is the right one, from an [address] not shut out for guessing. */
+    private fun accepted(address: InetAddress, key: String?): Boolean {
+        if (guesses.shutOut(address)) return false
+        return MessageDigest.isEqual(key?.toByteArray(), keyBytes).also { if (!it) guesses.wrong(address) }
+    }
+
     /** The report as a file to save or share: that is what a phone's browser then offers. */
-    private fun giveReport(output: OutputStream, request: PhoneRequest) {
+    private fun giveReport(output: OutputStream, request: PhoneRequest, address: InetAddress) {
         // The key first: nobody without it makes the service read the file.
-        val keyed = MessageDigest.isEqual(request.query["k"]?.toByteArray(), keyBytes)
+        val keyed = accepted(address, request.query["k"])
         val text = if (keyed) report() else null
         if (text == null) return respond(output, STATUS_NOT_FOUND, "text/plain", "not found".toByteArray())
         val asFile = "Content-Disposition: attachment; filename=\"${PhoneRemoteSettings.REPORT_FILE}\"\r\n"

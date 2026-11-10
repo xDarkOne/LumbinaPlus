@@ -1,8 +1,14 @@
 package dev.lumbina.tv.platform.accessibility
 
+import dev.lumbina.tv.core.common.LumbinaLog
 import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -10,6 +16,36 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhoneRemoteServerTest {
+
+    @Test
+    fun `an address that keeps guessing the key is not answered even with the right one`() = runBlocking {
+        val port = ServerSocket(0).use { it.localPort }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val server = PhoneRemoteServer(port, "right", { ByteArray(0) }, { PhoneAnswer.Done }, LumbinaLog { _, _ -> })
+        server.start(scope)
+        fun ask(key: String): String {
+            repeat(50) {
+                runCatching {
+                    return Socket("127.0.0.1", port).use { socket ->
+                        socket.getOutputStream().write(
+                            "POST /api/info HTTP/1.1\r\nX-Key: $key\r\nContent-Length: 0\r\n\r\n".toByteArray(),
+                        )
+                        socket.getInputStream().readBytes().decodeToString().lineSequence().first()
+                    }
+                }
+                Thread.sleep(50)
+            }
+            error("the server did not answer")
+        }
+        try {
+            assertTrue(ask("right").contains("200"))
+            repeat(20) { assertTrue(ask("wrong").contains("403")) }
+            assertTrue(ask("right").contains("403"))
+        } finally {
+            server.stop()
+            scope.cancel()
+        }
+    }
 
     @Test
     fun `reads the request head and exactly the body`() {
