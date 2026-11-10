@@ -16,6 +16,32 @@ alongside Lumbina.
 4. If you are keeping [VoiceKey](https://github.com/xDarkOne/voicekey) active, turn off
    **Intercept remote buttons** in LumbinaPlus to avoid both services handling the microphone.
 
+## Install, debugging and going back
+
+1. Download `LumbinaPlus-<version>.apk` from [Releases](https://github.com/xDarkOne/LumbinaPlus/releases)
+   and install it from a USB stick or with `adb install`. Later versions are offered in
+   **About Lumbina** (Check for an update) and install over this one; a package signed by another key (for example
+   your own debug build) has to replace it with an uninstall first, losing its settings.
+2. In the projector's developer options turn on **USB debugging** and **Wi-Fi debugging**. Then
+   open **Access** in LumbinaPlus and allow the debugging prompt that appears: over it LumbinaPlus
+   keeps its own service on, grants itself the permissions it needs and turns Hisense's launcher off.
+   The debugging stays on the local network at port 5555 for as long as it is enabled: anyone who
+   can reach the projector and whose key was allowed can control it, so only allow keys you know.
+3. While **Intercept remote buttons** is on, LumbinaPlus keeps Hisense's own launcher
+   (`com.oversea.aslauncher`) disabled, because that launcher takes Home whenever the service is
+   not catching it. To go back to the stock launcher, turn **Intercept remote buttons** off first,
+   then from a computer run
+
+   ```sh
+   adb shell pm enable com.oversea.aslauncher
+   adb shell cmd package set-home-activity com.oversea.aslauncher/.ui.main.MainActivity
+   ```
+
+   or simply uninstall LumbinaPlus and run the first command.
+4. Problems: open an [issue](https://github.com/xDarkOne/LumbinaPlus/issues) and attach the report
+   from **Diagnostics**. Recognized phrases are replaced by their length in it, and
+   links keep only the site.
+
 ## VIDAA features
 
 - Tap the microphone to give a command or search. Hold it to search in the supported app on
@@ -151,16 +177,18 @@ Lumbina talks to these services directly, so each of them sees your IP:
 | [alphacephei.com](https://alphacephei.com), [huggingface.co](https://huggingface.co) | You download a speech model | Which model | Don't download |
 | [api.openai.com](https://openai.com), [stt.api.cloud.yandex.net](https://yandex.cloud/services/speechkit) | You chose cloud recognition | Audio of each phrase and your API key | Recognize on the device, it's the default |
 | Another app on the device, and whatever it sends on | You chose another app to recognize | Audio of each phrase | Recognize on the device, it's the default |
-| [api.github.com, github.com](https://github.com/Kasavy/lumbina/releases) | You check for a new version of Lumbina | The request itself; then the download | Don't check: nothing is checked by itself |
+| [api.github.com, github.com](https://github.com/xDarkOne/LumbinaPlus/releases) | You check for a new version of Lumbina | The request itself; then the download | Don't check: nothing is checked by itself |
 | Whatever hosts the apps name | An app publishes channels or "continue watching" | The request for the artwork the app points to | Hide the row or the channel |
 | Wallpaper plugins | You chose a plugin as wallpaper | Whatever the plugin asks for | Pick another wallpaper |
 
 Recognized phrases go to Lumbina's log on the device, with the names of the apps and windows you
-open. The log leaves the device only if you save a diagnostics report yourself and send it to
+open. In a diagnostics report the phrases are replaced by their length and links keep only the
+site. The log leaves the device only if you save a diagnostics report yourself and send it to
 someone: the report is a file with the log's tail, facts about the device and its firmware, and
 lists of its system apps and of the apps that publish channels. While the phone remote is on, the
 last report you saved can also be downloaded from the device by whoever has the remote's key.
-The phone remote is plain HTTP on the local network, protected by the key in its QR code; if you
+The phone remote is plain HTTP on the local network, protected by the key in its QR code (an address that keeps sending wrong keys is not answered
+for ten minutes); if you
 turn on showing the code on the screensaver, everyone in the room can read that key.
 
 What every permission is used for: [SECURITY.md](SECURITY.md).
