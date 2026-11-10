@@ -114,7 +114,9 @@ internal fun MacrobenchmarkScope.skipSetup() {
  * menu, one of the heading's dialogs, and Back twice, to the row's start and to the top of home.
  */
 internal fun MacrobenchmarkScope.visitAllApps() {
-    device.executeShellCommand("am start -n $PACKAGE/.MainActivity --es $SETTINGS_PAGE_EXTRA $HOME_ALL_APPS")
+    device.executeShellCommand(
+        "am start -n $PACKAGE/dev.lumbina.tv.MainActivity --es $SETTINGS_PAGE_EXTRA $HOME_ALL_APPS",
+    )
     checkNotNull(device.wait(Until.findObject(By.text(APPS_FIND)), FIND_MILLIS)) {
         "\"$ALL_APPS\" didn't come into view"
     }
@@ -163,7 +165,7 @@ internal fun MacrobenchmarkScope.visitSettings() {
 }
 
 private fun MacrobenchmarkScope.openSettings(page: String) {
-    device.executeShellCommand("am start -n $PACKAGE/.MainActivity --es $SETTINGS_PAGE_EXTRA $page")
+    device.executeShellCommand("am start -n $PACKAGE/dev.lumbina.tv.MainActivity --es $SETTINGS_PAGE_EXTRA $page")
     checkNotNull(device.wait(Until.findObject(By.text(SETTINGS_TITLE)), FIND_MILLIS)) {
         "settings didn't open at $page"
     }

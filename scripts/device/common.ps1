@@ -1,6 +1,6 @@
 # Shared settings for device scripts. Override with environment variables.
 $ErrorActionPreference = 'Stop'
-$Pkg = if ($env:LUMBINA_PKG) { $env:LUMBINA_PKG } else { 'dev.lumbina.tv' }
+$Pkg = if ($env:LUMBINA_PKG) { $env:LUMBINA_PKG } else { 'dev.xdark.lumbinaplus' }
 $A11yService = if ($env:LUMBINA_A11Y_SERVICE) { $env:LUMBINA_A11Y_SERVICE } else { "$Pkg/dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService" }
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 

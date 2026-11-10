@@ -12,7 +12,7 @@ if ! grep -qs '^lumbina.processPrefix=' "$ROOT/local.properties" && [ -z "${LUMB
   echo "warning: this build has no process name prefix, see 'Build' in the README" >&2
 fi
 "$ADB" install -r "$(host_path "${apks[0]}")"
-"$ADB" shell am start -n "$PKG/.MainActivity"
+"$ADB" shell am start -n "$PKG/dev.lumbina.tv.MainActivity"
 [ "$type" = release ] || exit 0
 # As after a store install: compiled by the baseline profile. Sideloaded, the code is interpreted
 # until the device compiles it some idle night. The profile is written a few seconds after the
@@ -28,4 +28,4 @@ sleep 10
   echo "warning: no baseline profile was applied; Lumbina will run uncompiled" >&2
 "$ADB" shell am force-stop "$PKG"
 [ "$service_was_on" = 0 ] || bash "$(dirname "$0")/enable-a11y.sh"
-"$ADB" shell am start -n "$PKG/.MainActivity"
+"$ADB" shell am start -n "$PKG/dev.lumbina.tv.MainActivity"

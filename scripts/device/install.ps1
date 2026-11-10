@@ -16,7 +16,7 @@ if (-not $prefixed) {
 & $Adb install -r $apk.FullName
 # Nothing below may run after a failed install: it would stop the build already there.
 if ($LASTEXITCODE) { throw "adb install failed" }
-& $Adb shell am start -n "$Pkg/.MainActivity"
+& $Adb shell am start -n "$Pkg/dev.lumbina.tv.MainActivity"
 if ($Type -ne 'release') { return }
 # As after a store install: compiled by the baseline profile. Sideloaded, the code is interpreted
 # until the device compiles it some idle night. The profile is written a few seconds after the
@@ -32,4 +32,4 @@ if (-not ((& $Adb shell dumpsys package $Pkg) -match 'status=speed-profile')) {
 }
 & $Adb shell am force-stop $Pkg
 if ($serviceWasOn) { & "$PSScriptRoot\enable-a11y.ps1" }
-& $Adb shell am start -n "$Pkg/.MainActivity"
+& $Adb shell am start -n "$Pkg/dev.lumbina.tv.MainActivity"
