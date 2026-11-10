@@ -30,6 +30,9 @@ jobs:
         run: ./gradlew test testDebugUnitTest testFossDebugUnitTest --continue
 
       - name: Release build (R8)
+        env:
+          # Only to see that R8 builds it: this APK is signed with the public debug key, never published.
+          LUMBINA_ALLOW_DEBUG_SIGNED_RELEASE: "true"
         run: ./gradlew :app:assembleFossRelease
 
       - name: Upload reports
@@ -44,5 +47,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: lumbina-foss-release-unsigned-or-debug-signed
+          name: lumbinaplus-foss-release-debug-signed
           path: app/build/outputs/apk/foss/release/*.apk
