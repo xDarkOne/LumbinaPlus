@@ -10,8 +10,8 @@ android {
 
     defaultConfig {
         applicationId = "dev.xdark.lumbinaplus"
-        versionCode = 14
-        versionName = "0.2.0"
+        versionCode = 15
+        versionName = "0.2.1"
     }
 
     flavorDimensions += "services"
