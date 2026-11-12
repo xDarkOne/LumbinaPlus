@@ -25,6 +25,7 @@ import dev.lumbina.tv.core.domain.device.FirmwareParts
 import dev.lumbina.tv.core.domain.device.PackageStates
 import dev.lumbina.tv.core.domain.diagnostics.AskDevice
 import dev.lumbina.tv.core.domain.health.AccessibilityHealth
+import dev.lumbina.tv.core.domain.health.AdbAccessibilityRestart
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.HealLock
 import dev.lumbina.tv.core.domain.health.SecureSettings
@@ -133,7 +134,22 @@ object AppModule {
         @Named(OUR_ACCESSIBILITY_SERVICE) ourService: String,
         lock: HealLock,
         remote: RemoteSettingsRepository,
-    ): HealAccessibilityService = HealAccessibilityService(settings, health, ourService, lock) {
+        adb: LocalAdb,
+        @ApplicationContext context: Context,
+    ): HealAccessibilityService = HealAccessibilityService(
+        settings,
+        health,
+        ourService,
+        lock,
+        restart = AdbAccessibilityRestart(adb, ourService, ourLabel(context, ourService)),
+    ) {
         remote.settings.first().interceptRemote
     }
+}
+
+/** As the system shows the service, e.g. in `dumpsys accessibility`. */
+private fun ourLabel(context: Context, ourService: String): String {
+    val pm = context.packageManager
+    val component = requireNotNull(ComponentName.unflattenFromString(ourService))
+    return pm.getServiceInfo(component, 0).loadLabel(pm).toString()
 }

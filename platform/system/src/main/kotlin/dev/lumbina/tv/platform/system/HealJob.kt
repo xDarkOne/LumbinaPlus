@@ -76,7 +76,7 @@ class HealJob : JobService() {
             }
             // After re-enabling, confirm the service actually came up. Under another job ID than
             // this one's: scheduling the running job's ID again would stop it right here.
-            if (result.getOrNull() == HealResult.Reenabled && attempt < MAX_ATTEMPTS) {
+            if (result.getOrNull() in RETRY_AFTER && attempt < MAX_ATTEMPTS) {
                 scheduleCheck(this@HealJob, attempt + 1)
             }
             runCatching { systemLanguage.restore() }.onFailure { log.log(TAG, "locale restore: $it") }
@@ -123,6 +123,7 @@ class HealJob : JobService() {
         private const val QUICK_CHECK_DELAY_MILLIS = 20_000L
         private const val EXTRA_ATTEMPT = "attempt"
         private const val MAX_ATTEMPTS = 3
+        private val RETRY_AFTER = setOf(HealResult.Reenabled, HealResult.WaitingForSystem)
         private const val CHECK_DELAY_MILLIS = 30_000L
         private const val PERIOD_MILLIS = 15 * 60_000L
         private const val CHECK_GAP_MILLIS = 5 * 60_000L
