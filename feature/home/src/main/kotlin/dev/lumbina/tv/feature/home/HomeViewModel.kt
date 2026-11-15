@@ -188,12 +188,6 @@ class HomeViewModel @Inject constructor(
     /** The row the settings are working on now: home brings it into view and keeps it lit. */
     val spotlight: StateFlow<String?> = spotlight.lit
 
-    init {
-        // Banners from before they had a folder of their own move there, once.
-        viewModelScope.launch(Dispatchers.IO) { separateBanners() }
-        viewModelScope.launch { sayArrivals() }
-    }
-
     /**
      * Files come through the phone page's server, in the remote's service: the bar at the bottom says
      * so for a while, with the way to the media library. Not for files that came while home was away.
@@ -418,6 +412,14 @@ class HomeViewModel @Inject constructor(
 
     /** What was just taken off the screen and can still be put back; null once the time is up. */
     val undo: StateFlow<Undo?> = undoable.asStateFlow()
+
+    init {
+        // Banners from before they had a folder of their own move there, once.
+        viewModelScope.launch(Dispatchers.IO) { separateBanners() }
+        // After the fields: viewModelScope starts on Main.immediate, so with settings already
+        // read the collection runs inside this block and must find undoable set.
+        viewModelScope.launch { sayArrivals() }
+    }
 
     /**
      * Puts back what [undo] names: the layout as it was before, or the row that was switched off.
