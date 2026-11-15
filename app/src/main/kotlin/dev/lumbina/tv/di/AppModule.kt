@@ -41,6 +41,7 @@ import dev.lumbina.tv.core.network.UrlConnectionGet
 import dev.lumbina.tv.feature.screensaver.LumbinaDream
 import dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService
 import dev.lumbina.tv.platform.accessibility.SpeechAppEngine
+import java.io.File
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
@@ -141,15 +142,18 @@ object AppModule {
         health,
         ourService,
         lock,
-        restart = AdbAccessibilityRestart(adb, ourService, ourLabel(context, ourService)),
+        restart = File(context.filesDir, LAST_RESTART_FILE).let { file ->
+            AdbAccessibilityRestart(
+                adb,
+                ourService,
+                lastRestart = { runCatching { file.readText().trim().toLong() }.getOrDefault(0L) },
+                rememberRestart = { at -> runCatching { file.writeText(at.toString()) } },
+            )
+        },
     ) {
         remote.settings.first().interceptRemote
     }
 }
 
-/** As the system shows the service, e.g. in `dumpsys accessibility`. */
-private fun ourLabel(context: Context, ourService: String): String {
-    val pm = context.packageManager
-    val component = requireNotNull(ComponentName.unflattenFromString(ourService))
-    return pm.getServiceInfo(component, 0).loadLabel(pm).toString()
-}
+/** When the accessibility service was last restarted cleanly, kept across processes. */
+private const val LAST_RESTART_FILE = "a11y-restart"

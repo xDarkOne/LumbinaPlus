@@ -48,22 +48,24 @@ interface HealLock {
 
 /**
  * What only a shell can tell and do about our service. Android 11 keeps the connection of a
- * service whose process died as "crashed" and restarts it through that connection; listing the
- * service again meanwhile adds a second connection, and every remote key then acts twice.
+ * service whose process died and restarts the service through it; listing the service again
+ * meanwhile adds a second connection, and the remote's keys then repeat. Only stopping the app
+ * drops every connection, so with a shell the list is never toggled.
  */
 interface AccessibilityRestart {
-    /** Whether the system holds our service as crashed; null when that can't be told. */
-    suspend fun isCrashed(): Boolean?
+    /** How many connections the system holds to our service; null when there is no shell to tell. */
+    suspend fun connections(): Int?
 
     /**
      * Stops our app, dropping every connection to the service, and then lists [services]
-     * again, from a shell that outlives our process. False when there is no shell.
+     * again, from a shell that outlives our process. False when there is no shell, or when it
+     * restarted the service a short while ago (a restart that doesn't mend must not loop).
      */
     suspend fun restartClean(services: String): Boolean
 
-    /** Without a shell: crashes go unseen and the list is toggled as before. */
+    /** Without a shell: connections go uncounted and the list is toggled. */
     object None : AccessibilityRestart {
-        override suspend fun isCrashed(): Boolean? = null
+        override suspend fun connections(): Int? = null
 
         override suspend fun restartClean(services: String) = false
     }
@@ -75,23 +77,26 @@ sealed interface HealResult {
     data object MissingPermission : HealResult
     data object Reenabled : HealResult
 
-    /** Crashed and not restarted by the system in time: the app is being stopped and listed anew. */
+    /** Not bound again by the system in time: the app is being stopped and listed anew. */
     data object Restarting : HealResult
 
-    /** Crashed and no shell to restart it cleanly: left for the system, the list is not touched. */
+    /** Bound twice, the remote's keys repeating: the app is being stopped and listed anew. */
+    data object RestartingBoundTwice : HealResult
+
+    /** Down or bound twice, and no clean restart now (see [AccessibilityRestart.restartClean]). */
     data object WaitingForSystem : HealResult
 }
 
 /**
  * Brings our accessibility service back when the system doesn't run it, listed or not (another app
- * may have taken it off the list): removing it from the list and adding it again makes the system
- * bind it. The user who wants it off turns this off ("The remote's service turns itself on", which
- * takes the right). A service found unbound gets [settleMillis] first: the system may be binding
- * it right now (e.g. as the device wakes, or after another heal just toggled it), and toggling
- * then leaves it bound twice, every remote key acting twice. The wait and the toggle run under
- * [lock], so a second heal waits for the first and then sees its result. A service the system
- * holds as crashed is never toggled (see [AccessibilityRestart]): the system gets [crashWaitMillis]
- * to restart it, then our app is stopped and listed again in one go.
+ * may have taken it off the list), and mends it bound twice. A service found unbound gets
+ * [settleMillis] first: the system may be binding it right now (e.g. as the device wakes). With a
+ * shell ([AccessibilityRestart]) it then gets [systemWaitMillis] more to be restarted by the
+ * system, and after that our app is stopped and listed again in one go; without one, removing it
+ * from the list and adding it again makes the system bind it. A service bound twice, seen so
+ * twice [confirmMillis] apart, is restarted the same way. The user who wants it off turns this
+ * off ("The remote's service turns itself on", which takes the right). All runs under [lock], so
+ * a second heal waits for the first and then sees its result.
  */
 class HealAccessibilityService(
     private val settings: SecureSettings,
@@ -101,14 +106,35 @@ class HealAccessibilityService(
     private val toggleDelayMillis: Long = 1_500,
     private val settleMillis: Long = 8_000,
     private val restart: AccessibilityRestart = AccessibilityRestart.None,
-    private val crashWaitMillis: Long = 60_000,
+    private val systemWaitMillis: Long = 60_000,
+    private val confirmMillis: Long = 10_000,
     private val interceptRemote: suspend () -> Boolean = { true },
 ) {
     suspend operator fun invoke(): HealResult {
         if (!interceptRemote()) return HealResult.Disabled
-        if (health.isServiceBound()) return HealResult.AlreadyRunning
+        if (health.isServiceBound()) {
+            return if (boundTwice()) {
+                lock.withLock {
+                    mendBoundTwice()
+                }
+            } else {
+                HealResult.AlreadyRunning
+            }
+        }
         if (!settings.canWrite) return HealResult.MissingPermission
         return lock.withLock { healUnbound() }
+    }
+
+    private suspend fun boundTwice(): Boolean = (restart.connections() ?: 0) > 1
+
+    private suspend fun mendBoundTwice(): HealResult {
+        delay(confirmMillis)
+        return when {
+            !interceptRemote() -> HealResult.Disabled
+            !boundTwice() -> HealResult.AlreadyRunning
+            restart.restartClean(ourServiceListed()) -> HealResult.RestartingBoundTwice
+            else -> HealResult.WaitingForSystem
+        }
     }
 
     private suspend fun healUnbound(): HealResult {
@@ -116,8 +142,8 @@ class HealAccessibilityService(
         return when {
             !interceptRemote() -> HealResult.Disabled
             health.isServiceBound() -> HealResult.AlreadyRunning
-            restart.isCrashed() == true -> healCrashed()
-            else -> toggle()
+            restart.connections() == null -> toggle()
+            else -> restartUnbound()
         }
     }
 
@@ -135,23 +161,17 @@ class HealAccessibilityService(
         }
     }
 
-    private suspend fun healCrashed(): HealResult = when {
+    private suspend fun restartUnbound(): HealResult = when {
         systemRestarts() -> HealResult.AlreadyRunning
-
         !interceptRemote() -> HealResult.Disabled
-
-        // Off the crashed list but not bound: the system is binding it now.
-        restart.isCrashed() == false -> HealResult.WaitingForSystem
-
         restart.restartClean(ourServiceListed()) -> HealResult.Restarting
-
         else -> HealResult.WaitingForSystem
     }
 
-    /** Whether the system binds the crashed service again within [crashWaitMillis]. */
+    /** Whether the system binds the service again within [systemWaitMillis]. */
     private suspend fun systemRestarts(): Boolean {
-        repeat((crashWaitMillis / CRASH_POLL_MILLIS).toInt()) {
-            delay(CRASH_POLL_MILLIS)
+        repeat((systemWaitMillis / POLL_MILLIS).toInt()) {
+            delay(POLL_MILLIS)
             if (health.isServiceBound()) return true
         }
         return false
@@ -162,6 +182,6 @@ class HealAccessibilityService(
     )
 
     private companion object {
-        const val CRASH_POLL_MILLIS = 5_000L
+        const val POLL_MILLIS = 5_000L
     }
 }

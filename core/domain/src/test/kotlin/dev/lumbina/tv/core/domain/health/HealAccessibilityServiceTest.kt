@@ -124,66 +124,53 @@ class HealAccessibilityServiceTest {
         assertEquals(listOf(assistant, "$assistant:$ours"), settings.writes)
     }
 
-    private class FakeRestart(var crashed: Boolean?, private val shell: Boolean = true) : AccessibilityRestart {
+    /** A shell that reports [counts] in turn (the last one from then on), or none for null. */
+    private class FakeRestart(vararg counts: Int?, private val allowed: Boolean = true) : AccessibilityRestart {
+        private val counts = ArrayDeque(counts.toList())
         val restarts = mutableListOf<String>()
 
-        override suspend fun isCrashed() = crashed
+        override suspend fun connections(): Int? = if (counts.size > 1) counts.removeFirst() else counts.first()
 
         override suspend fun restartClean(services: String): Boolean {
-            if (shell) restarts += services
-            return shell
+            if (allowed) restarts += services
+            return allowed
         }
     }
 
-    private fun crashedHeal(settings: FakeSecureSettings, restart: AccessibilityRestart, bound: () -> Boolean) =
-        HealAccessibilityService(settings, bound, ours, FakeHealLock(), 0, 0, restart, crashWaitMillis = 60_000)
+    private fun shellHeal(settings: FakeSecureSettings, restart: AccessibilityRestart, bound: () -> Boolean) =
+        HealAccessibilityService(settings, bound, ours, FakeHealLock(), 0, 0, restart)
 
     @Test
-    fun `a crashed service the system restarts in time is left alone`() = runTest {
+    fun `with a shell an unbound service the system brings back in time is left alone`() = runTest {
         val settings = FakeSecureSettings(services = "$assistant:$ours")
-        val restart = FakeRestart(crashed = true)
+        val restart = FakeRestart(0)
         var checks = 0
-        assertEquals(HealResult.AlreadyRunning, crashedHeal(settings, restart) { checks++ >= 3 }())
+        assertEquals(HealResult.AlreadyRunning, shellHeal(settings, restart) { checks++ >= 3 }())
         assertTrue(settings.writes.isEmpty())
         assertTrue(restart.restarts.isEmpty())
     }
 
     @Test
-    fun `a crashed service is never toggled, it is restarted cleanly with our entry listed`() = runTest {
+    fun `with a shell the list is never toggled, the app is restarted cleanly with our entry listed`() = runTest {
         val settings = FakeSecureSettings(services = "$assistant:$ours:$assistant")
-        val restart = FakeRestart(crashed = true)
-        assertEquals(HealResult.Restarting, crashedHeal(settings, restart) { false }())
+        val restart = FakeRestart(1)
+        assertEquals(HealResult.Restarting, shellHeal(settings, restart) { false }())
         assertTrue(settings.writes.isEmpty())
         assertEquals(listOf("$assistant:$ours"), restart.restarts)
     }
 
     @Test
-    fun `a crashed service without a shell waits for the system`() = runTest {
+    fun `a restart refused leaves the service to the system, the list untouched`() = runTest {
         val settings = FakeSecureSettings(services = ours)
-        val restart = FakeRestart(crashed = true, shell = false)
-        assertEquals(HealResult.WaitingForSystem, crashedHeal(settings, restart) { false }())
-        assertTrue(settings.writes.isEmpty())
-    }
-
-    @Test
-    fun `a service no longer crashed after the wait is not restarted`() = runTest {
-        val settings = FakeSecureSettings(services = ours)
-        val restart = FakeRestart(crashed = true)
-        var checks = 0
-        // Two checks before the crash is seen, then the system takes it off the crashed list.
-        val heal = crashedHeal(settings, restart) {
-            if (++checks > 2) restart.crashed = false
-            false
-        }
-        assertEquals(HealResult.WaitingForSystem, heal())
-        assertTrue(restart.restarts.isEmpty())
+        val restart = FakeRestart(0, allowed = false)
+        assertEquals(HealResult.WaitingForSystem, shellHeal(settings, restart) { false }())
         assertTrue(settings.writes.isEmpty())
     }
 
     @Test
     fun `turning interception off during the wait stops the restart`() = runTest {
         val settings = FakeSecureSettings(services = ours)
-        val restart = FakeRestart(crashed = true)
+        val restart = FakeRestart(0)
         var intercept = true
         val heal = HealAccessibilityService(settings, { false }, ours, FakeHealLock(), 0, 0, restart) { intercept }
         val result = async { heal() }
@@ -194,11 +181,44 @@ class HealAccessibilityServiceTest {
     }
 
     @Test
-    fun `a service that is not crashed, or unknown, is toggled as before`() = runTest {
-        for (crashed in listOf(false, null)) {
-            val settings = FakeSecureSettings(services = ours)
-            assertEquals(HealResult.Reenabled, crashedHeal(settings, FakeRestart(crashed)) { false }())
-            assertEquals(listOf("", ours), settings.writes)
-        }
+    fun `without a shell the list is toggled`() = runTest {
+        val settings = FakeSecureSettings(services = ours)
+        assertEquals(HealResult.Reenabled, shellHeal(settings, FakeRestart(null)) { false }())
+        assertEquals(listOf("", ours), settings.writes)
+    }
+
+    @Test
+    fun `a service bound twice, still so after a while, is restarted cleanly`() = runTest {
+        val settings = FakeSecureSettings(services = "$assistant:$ours")
+        val restart = FakeRestart(2, 2)
+        assertEquals(HealResult.RestartingBoundTwice, shellHeal(settings, restart) { true }())
+        assertEquals(listOf("$assistant:$ours"), restart.restarts)
+        assertTrue(settings.writes.isEmpty())
+    }
+
+    @Test
+    fun `a second connection that goes away by itself is left alone`() = runTest {
+        val restart = FakeRestart(2, 1)
+        assertEquals(HealResult.AlreadyRunning, shellHeal(FakeSecureSettings(services = ours), restart) { true }())
+        assertTrue(restart.restarts.isEmpty())
+    }
+
+    @Test
+    fun `a service bound twice is restarted even without the settings grant`() = runTest {
+        val settings = FakeSecureSettings(services = ours, canWrite = false)
+        assertEquals(HealResult.RestartingBoundTwice, shellHeal(settings, FakeRestart(2)) { true }())
+    }
+
+    @Test
+    fun `bound twice with the restart refused waits`() = runTest {
+        val restart = FakeRestart(2, allowed = false)
+        assertEquals(HealResult.WaitingForSystem, shellHeal(FakeSecureSettings(services = ours), restart) { true }())
+    }
+
+    @Test
+    fun `bound once, nothing is done`() = runTest {
+        val restart = FakeRestart(1)
+        assertEquals(HealResult.AlreadyRunning, shellHeal(FakeSecureSettings(services = ours), restart) { true }())
+        assertTrue(restart.restarts.isEmpty())
     }
 }
